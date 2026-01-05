@@ -1,3 +1,4 @@
+using ClinicManagement_API.Contracts;
 using ClinicManagement_API.Domains.Entities;
 using ClinicManagement_API.Features.booking_service.dto;
 using ClinicManagement_API.Infrastructure.Persisstence;
@@ -52,7 +53,7 @@ namespace ClinicManagement_API.Features.booking_service.service
             _context.DoctorTimeOffs.Add(timeOff);
             await _context.SaveChangesAsync();
 
-            var result = new DoctorTimeOffDto(timeOff.TimeOffId,timeOff.ClinicId, timeOff.DoctorId, timeOff.StartAt, timeOff.EndAt, timeOff.Reason, clinic, doctor);
+            var result = new DoctorTimeOffDto(timeOff.TimeOffId, timeOff.ClinicId, timeOff.DoctorId, timeOff.StartAt, timeOff.EndAt, timeOff.Reason, clinic, doctor);
 
             return Results.Ok(new ApiResponse<DoctorTimeOffDto>(true, "Doctor time off added successfully", result));
         }
@@ -70,7 +71,7 @@ namespace ClinicManagement_API.Features.booking_service.service
                 ? Results.Ok(new ApiResponse<object>(true, $"Doctor time off updated successfully {affectedRows}", null))
                 : Results.NoContent();
         }
-      
+
         public async Task<IResult> DeleteDoctorTimeOffAsync(Guid timeOffId)
         {
             var affectedRows = await _context.DoctorTimeOffs.Where(x => x.TimeOffId == timeOffId).ExecuteDeleteAsync();
@@ -134,6 +135,6 @@ namespace ClinicManagement_API.Features.booking_service.service
                 : Results.NoContent();
         }
 
- 
+
     }
 }

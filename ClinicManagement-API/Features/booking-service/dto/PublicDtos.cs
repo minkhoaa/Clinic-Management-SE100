@@ -10,12 +10,12 @@ public record DoctorDto(Guid DoctorId, Guid ClinicId, string Code, string FullNa
 public record AvailabilityDto(DateOnly Date, TimeSpan StartTime, TimeSpan EndTime, short SlotSizeMin);
 public record SlotDto(DateTime StartAt, DateTime EndAt);
 public record EnumDto(int Value, string Name);
-public record ApiResponse<T>(bool IsSuccess, string Message, T? Data);
 
 public record CreateBookingRequest(
     Guid ClinicId,
     Guid DoctorId,
     Guid? ServiceId,
+    Guid? PatientId,
     DateTime StartAt,
     DateTime EndAt,
     string FullName,
@@ -37,5 +37,6 @@ public record PatientDto(Guid PatientId, Guid ClinicId, string PatientCode, stri
 
 public record CreatePatientDto(Guid ClinicId, string PatientCode, Gender Gender, string FullName, string? PrimaryPhone, string? Email, string? AddressLine1, DateTime? Dob, string? Note);
 
-public record DoctorTimeOffDto(Guid TimeOffId,Guid ClinicId, Guid DoctorId, DateTime StartAt, DateTime EndAt, string? Reason, Clinic Clinic, Doctor Doctor);
+public record DoctorTimeOffDto(Guid TimeOffId, Guid ClinicId, Guid DoctorId, DateTime StartAt, DateTime EndAt, string? Reason, Clinic Clinic, Doctor Doctor);
 public record AddDoctorTimeOffRequest(Guid ClinicId, Guid DoctorId, DateTime StartAt, DateTime EndAt, string? Reason);
+

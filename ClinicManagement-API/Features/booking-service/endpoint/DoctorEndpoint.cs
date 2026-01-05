@@ -1,3 +1,4 @@
+using ClinicManagement_API.Contracts;
 using ClinicManagement_API.Features.booking_service.dto;
 using ClinicManagement_API.Features.booking_service.handler;
 using ClinicManagement_API.Infrastructure.Persisstence;
@@ -14,7 +15,7 @@ public static class DoctorEndpoint
         app.MapPut("/{doctorId:guid}", AdminHandler.UpdateDoctor);
         app.MapDelete("/{doctorId:guid}", AdminHandler.DeleteDoctor);
         app.MapGet("/", AdminHandler.GetAllDoctors);
-        
+
         app.MapPost("/time-off", AdminHandler.AddDoctorTimeOff);
         app.MapPut("/{timeOffId:guid}/time-offs", AdminHandler.UpdateDoctorTimeOff);
         app.MapGet("/time-offs/{doctorId:guid}", async (Guid doctorId, ClinicDbContext context) =>
@@ -28,5 +29,5 @@ public static class DoctorEndpoint
         });
         app.MapDelete("/time-off/{timeOffId:guid}", AdminHandler.DeleteDoctorTimeOff);
     }
-    
+
 }

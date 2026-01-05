@@ -1,3 +1,4 @@
+using ClinicManagement_API.Contracts;
 using ClinicManagement_API.Domains.Entities;
 using ClinicManagement_API.Domains.Enums;
 using ClinicManagement_API.Features.booking_service.dto;
@@ -229,7 +230,7 @@ namespace ClinicManagement_API.Features.booking_service.service
                 if (!doctorSupportsService)
                     return Results.BadRequest(new ApiResponse<BookingResponse>(false, "Doctor does not offer this service", null));
             }
-            
+
             var hasTimeOffConflict = await _context.DoctorTimeOffs.AnyAsync(t =>
                 t.DoctorId == req.DoctorId &&
                 Overlaps(t.StartAt, t.EndAt, req.StartAt, req.EndAt));
@@ -281,6 +282,7 @@ namespace ClinicManagement_API.Features.booking_service.service
                 ClinicId = req.ClinicId,
                 DoctorId = req.DoctorId,
                 ServiceId = req.ServiceId,
+                PatientId = req.PatientId,
                 StartAt = req.StartAt,
                 EndAt = req.EndAt,
                 FullName = req.FullName,
@@ -412,8 +414,8 @@ namespace ClinicManagement_API.Features.booking_service.service
                     && x.Status != AppointmentStatus.Cancelled
                     && x.Status != AppointmentStatus.NoShow
                     && Overlaps(x.StartAt, x.EndAt, startTime, endTime));
-            
-            if (overlapAppointment) 
+
+            if (overlapAppointment)
                 return Results.Conflict("Appointment is conflicted");
             await using var transaction = await _context.Database.BeginTransactionAsync();
             appointment.StartAt = startTime;

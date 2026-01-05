@@ -1,3 +1,4 @@
+using ClinicManagement_API.Contracts;
 using ClinicManagement_API.Features.booking_service.dto;
 using ClinicManagement_API.Features.booking_service.handler;
 using ClinicManagement_API.Infrastructure.Persisstence;

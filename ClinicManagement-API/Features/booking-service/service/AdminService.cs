@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using ClinicManagement_API.Contracts;
 using ClinicManagement_API.Domains.Entities;
 using ClinicManagement_API.Features.booking_service.dto;
 using ClinicManagement_API.Infrastructure.Persisstence;
@@ -9,16 +10,16 @@ using Microsoft.EntityFrameworkCore;
 
 namespace ClinicManagement_API.Features.booking_service.service
 {
-    
+
     public interface IAdminService
     {
         Task<IResult> CreateStaffAsync(CreateStaffUserDto request);
-            
+
         Task<IResult> UpdateStaffAsync(Guid userId, CreateStaffUserDto request);
-            
+
         Task<IResult> DeleteStaffAsync(Guid userId);
 
-        Task <IResult> CreatePatientAsync(CreatePatientDto request);
+        Task<IResult> CreatePatientAsync(CreatePatientDto request);
 
         Task<IResult> UpdatePatientAsync(Guid patientId, CreatePatientDto request);
 
@@ -31,7 +32,7 @@ namespace ClinicManagement_API.Features.booking_service.service
         {
             _context = context;
         }
-        
+
         public async Task<IResult> CreateStaffAsync(CreateStaffUserDto request)
         {
             var existingClinic = await _context.Clinics.AsNoTracking().AnyAsync(c => c.ClinicId == request.ClinicId);
@@ -39,7 +40,7 @@ namespace ClinicManagement_API.Features.booking_service.service
             {
                 return Results.NotFound(new ApiResponse<object>(false, "Clinic not found", existingClinic));
             }
-            
+
             var staff = new StaffUser
             {
 
@@ -52,8 +53,8 @@ namespace ClinicManagement_API.Features.booking_service.service
 
             _context.StaffUsers.Add(staff);
             await _context.SaveChangesAsync();
-            
-            var staffUserDto = new StaffUserDto(staff.UserId, staff.ClinicId, staff.Username, staff.FullName, staff.Role,staff.IsActive, staff.Clinic);
+
+            var staffUserDto = new StaffUserDto(staff.UserId, staff.ClinicId, staff.Username, staff.FullName, staff.Role, staff.IsActive, staff.Clinic);
             return Results.Created($"/staff/{staff.UserId}", new ApiResponse<StaffUserDto>(true, "Staff created successfully", staffUserDto));
         }
 
@@ -64,13 +65,13 @@ namespace ClinicManagement_API.Features.booking_service.service
             {
                 return Results.NotFound(new ApiResponse<object>(false, "Clinic not found", existingClinic));
             }
-            
+
             var existingStaff = await _context.StaffUsers.AsNoTracking().AnyAsync(c => c.UserId == userId);
             if (!existingStaff)
             {
                 return Results.NotFound(new ApiResponse<object>(false, "Staff not found", existingStaff));
             }
-            
+
             var affectedRows = await _context.StaffUsers.AsNoTracking().Where(s => s.UserId == userId).ExecuteUpdateAsync<StaffUser>(s => s
                 .SetProperty(s => s.ClinicId, request.ClinicId)
                 .SetProperty(s => s.Username, request.Username)
@@ -78,7 +79,7 @@ namespace ClinicManagement_API.Features.booking_service.service
                 .SetProperty(s => s.Role, request.Role)
                 .SetProperty(s => s.IsActive, request.IsActive));
             return affectedRows > 0
-                ? Results.Ok(new ApiResponse<object>(true, "Staff updated successfully",  affectedRows))
+                ? Results.Ok(new ApiResponse<object>(true, "Staff updated successfully", affectedRows))
                 : Results.NoContent();
         }
 
@@ -89,7 +90,7 @@ namespace ClinicManagement_API.Features.booking_service.service
             {
                 return Results.NotFound(new ApiResponse<object>(false, "Staff not found", existingStaff));
             }
-            
+
             var affectedRows = await _context.StaffUsers.AsNoTracking().Where(x => x.UserId == userId)
                 .ExecuteDeleteAsync();
             return affectedRows > 0
@@ -99,7 +100,7 @@ namespace ClinicManagement_API.Features.booking_service.service
 
         public async Task<IResult> CreatePatientAsync(CreatePatientDto request)
         {
-             var existingClinic = await _context.Clinics.AsNoTracking().AnyAsync(c => c.ClinicId == request.ClinicId);
+            var existingClinic = await _context.Clinics.AsNoTracking().AnyAsync(c => c.ClinicId == request.ClinicId);
             if (!existingClinic)
             {
                 return Results.NotFound(new ApiResponse<object>(false, "Clinic not found", existingClinic));
@@ -150,7 +151,7 @@ namespace ClinicManagement_API.Features.booking_service.service
                 .SetProperty(p => p.AddressLine1, request.AddressLine1)
                 .SetProperty(p => p.Note, request.Note));
             return affectedRows > 0
-                ? Results.Ok(new ApiResponse<object>(true, "Patient updated successfully",  affectedRows))
+                ? Results.Ok(new ApiResponse<object>(true, "Patient updated successfully", affectedRows))
                 : Results.NoContent();
         }
 

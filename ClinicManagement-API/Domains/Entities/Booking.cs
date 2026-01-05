@@ -15,7 +15,7 @@ public sealed class Booking
     public Guid ClinicId { get; set; }
     public Guid? DoctorId { get; set; }
     public Guid? ServiceId { get; set; }
-
+    public Guid? PatientId { get; set; }
     public DateTime StartAt { get; set; }
     public DateTime EndAt { get; set; }
 
@@ -33,5 +33,6 @@ public sealed class Booking
     public Doctor? Doctor { get; set; }
     public Service? Service { get; set; }
     public Appointment? Appointment { get; set; }
+    public Patients? Patients { get; set; }
     public ICollection<BookingToken> Tokens { get; set; } = new List<BookingToken>();
 }

@@ -415,10 +415,12 @@ public static class DbSeeder
                 PatientCode = "BN-001",
                 FullName = "Nguyễn Văn Khách",
                 Gender = Gender.MALE,
-                Dob = new DateTime(1990, 5, 15),
+                Dob = new DateTime(1990, 5, 15, 0, 0, 0, DateTimeKind.Utc),
                 PrimaryPhone = "0909123456",
                 Email = "khach.nguyen@gmail.com",
-                AddressLine1 = "789 Điện Biên Phủ, Quận Bình Thạnh"
+                AddressLine1 = "789 Điện Biên Phủ, Quận Bình Thạnh",
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
             },
             new Patients
             {
@@ -427,10 +429,12 @@ public static class DbSeeder
                 PatientCode = "BN-002",
                 FullName = "Trần Thị Lan",
                 Gender = Gender.FEMALE,
-                Dob = new DateTime(1985, 8, 20),
+                Dob = new DateTime(1985, 8, 20, 0, 0, 0, DateTimeKind.Utc),
                 PrimaryPhone = "0909234567",
                 Email = "lan.tran@gmail.com",
-                AddressLine1 = "321 Cách Mạng Tháng 8, Quận 10"
+                AddressLine1 = "321 Cách Mạng Tháng 8, Quận 10",
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
             },
             new Patients
             {
@@ -439,10 +443,12 @@ public static class DbSeeder
                 PatientCode = "BN-003",
                 FullName = "Lê Minh Tuấn",
                 Gender = Gender.MALE,
-                Dob = new DateTime(1978, 12, 1),
+                Dob = new DateTime(1978, 12, 1, 0, 0, 0, DateTimeKind.Utc),
                 PrimaryPhone = "0909345678",
                 Email = "tuan.le@gmail.com",
-                AddressLine1 = "555 Võ Văn Tần, Quận 3"
+                AddressLine1 = "555 Võ Văn Tần, Quận 3",
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
             }
         });
 

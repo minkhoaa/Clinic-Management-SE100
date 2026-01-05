@@ -3,6 +3,7 @@ using System;
 using ClinicManagement_API.Infrastructure.Persisstence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace ClinicManagement_API.Migrations
 {
     [DbContext(typeof(ClinicDbContext))]
-    partial class ClinicDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260105171236_UpdateDbVer2")]
+    partial class UpdateDbVer2
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -386,15 +389,6 @@ namespace ClinicManagement_API.Migrations
                     b.Property<string>("AddressLine1")
                         .HasColumnType("text");
 
-                    b.Property<string>("Allergy")
-                        .HasColumnType("text");
-
-                    b.Property<string>("BloodGroup")
-                        .HasColumnType("text");
-
-                    b.Property<string>("ChronicDisease")
-                        .HasColumnType("text");
-
                     b.Property<Guid>("ClinicId")
                         .HasColumnType("uuid");
 
@@ -407,12 +401,6 @@ namespace ClinicManagement_API.Migrations
                     b.Property<string>("Email")
                         .HasColumnType("text");
 
-                    b.Property<string>("EmergencyName")
-                        .HasColumnType("text");
-
-                    b.Property<string>("EmergencyPhone")
-                        .HasColumnType("text");
-
                     b.Property<string>("FullName")
                         .IsRequired()
                         .HasColumnType("text");
@@ -421,12 +409,6 @@ namespace ClinicManagement_API.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("integer")
                         .HasDefaultValue(2);
-
-                    b.Property<string>("InsuranceNumber")
-                        .HasColumnType("text");
-
-                    b.Property<string>("InsuranceType")
-                        .HasColumnType("text");
 
                     b.Property<string>("Note")
                         .HasColumnType("text");
@@ -440,9 +422,6 @@ namespace ClinicManagement_API.Migrations
 
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid?>("UserId")
-                        .HasColumnType("uuid");
 
                     b.HasKey("PatientId");
 

@@ -137,6 +137,10 @@ public class ClinicDbContext : IdentityDbContext<User, Role, Guid>
             e.HasOne(x => x.Service)
                 .WithMany(s => s.Bookings)
                 .HasForeignKey(x => x.ServiceId);
+
+            e.HasOne(k => k.Patients)
+                .WithMany(k => k.Bookings)
+                .HasForeignKey(k => k.PatientId);
         });
 
         modelBuilder.Entity<BookingToken>(e =>
@@ -217,5 +221,6 @@ public class ClinicDbContext : IdentityDbContext<User, Role, Guid>
                 .HasForeignKey(k => k.ClinicId)
                 ;
         });
+
     }
 }

@@ -11,5 +11,6 @@ public static class ServiceEndpoint
         app.MapPut("/{serviceId:guid}", AdminHandler.UpdateService);
         app.MapDelete("/{serviceId:guid}", AdminHandler.DeleteService);
         app.MapGet("/", AdminHandler.GetAllServices);
+        
     }
 }

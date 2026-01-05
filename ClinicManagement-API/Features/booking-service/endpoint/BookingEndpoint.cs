@@ -34,7 +34,7 @@ public static class BookingEndpoint
 
     public static void MapBookingEndpoint(this IEndpointRouteBuilder route)
     {
-        var app = route.MapGroup("/api/bookings").WithTags("Bookings");
+        var app = route.MapGroup("/api/appointments").WithTags("Appointments");
         app.MapPost("/", UserHandler.CreateBooking);
         app.MapGet("/{bookingId:guid}", UserHandler.GetBooking);
         app.MapPost("/{bookingId:guid}/confirm", UserHandler.ConfirmBooking);

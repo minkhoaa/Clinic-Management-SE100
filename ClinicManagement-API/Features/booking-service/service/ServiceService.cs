@@ -1,3 +1,4 @@
+using ClinicManagement_API.Contracts;
 using ClinicManagement_API.Domains.Entities;
 using ClinicManagement_API.Features.booking_service.dto;
 using ClinicManagement_API.Infrastructure.Persisstence;
@@ -10,7 +11,7 @@ namespace ClinicManagement_API.Features.booking_service.service
         Task<IResult> CreateService(CreateServiceRequest request);
 
         Task<IResult> GetAllService();
-    
+
         Task<IResult> UpdateService(Guid serviceId, CreateServiceRequest request);
 
         Task<IResult> DeleteService(Guid serviceId);
@@ -30,13 +31,13 @@ namespace ClinicManagement_API.Features.booking_service.service
             var services = await _context.Services.AsNoTracking()
                 .Select(service => new ServiceDto(service.ServiceId, service.Code, service.Name, service.DefaultDurationMin, service.DefaultPrice, service.IsActive, service.ClinicId))
                 .ToListAsync();
-            
+
             return Results.Ok(new ApiResponse<List<ServiceDto>>(true, "Services retrieved successfully", services));
         }
-        
+
         public async Task<IResult> CreateService(CreateServiceRequest request)
         {
-           
+
             var service = new Service
             {
                 Code = request.Code,
@@ -51,12 +52,12 @@ namespace ClinicManagement_API.Features.booking_service.service
             await _context.SaveChangesAsync();
 
             var serviceDto = new ServiceDto(
-                service.ServiceId, 
-                service.Code, 
-                service.Name, 
-                service.DefaultDurationMin, 
-                service.DefaultPrice, 
-                service.IsActive, 
+                service.ServiceId,
+                service.Code,
+                service.Name,
+                service.DefaultDurationMin,
+                service.DefaultPrice,
+                service.IsActive,
                 service.ClinicId
             );
             return Results.Created($"/services", new ApiResponse<ServiceDto>(true, "Service created successfully", serviceDto));
