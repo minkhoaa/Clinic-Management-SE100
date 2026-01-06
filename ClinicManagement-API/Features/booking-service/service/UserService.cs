@@ -398,42 +398,90 @@ namespace ClinicManagement_API.Features.booking_service.service
 
         public async Task<IResult> ReschedulingAppointmentAsync(string token, DateTime startTime, DateTime endTime)
         {
-            var reschedulingRequest = await _context.BookingTokens.Where(x => x.Token == token && x.Action == "Reschedule"
-                                                                              && x.ExpiresAt > DateTime.UtcNow)
-                                          .Include(bookingToken => bookingToken.Booking)
-                                          .ThenInclude(booking => booking.Appointment)
-                                          .FirstOrDefaultAsync() ??
-                                      throw new Exception("Cannot found reschedule request");
-            var booking = reschedulingRequest.Booking;
-            var appointment = booking.Appointment ?? throw new Exception("Cannot find appointment");
-            if (appointment.Status is AppointmentStatus.Cancelled or AppointmentStatus.NoShow)
-                return Results.Conflict("Cannot rescheduling appointment");
-
-            // Check overlap với các appointment khác (loại trừ chính appointment này và những cái đã cancel/noshow)
-            var overlapAppointment = await _context.Appointments.AsNoTracking()
-                .AnyAsync(x => x.AppointmentId != appointment.AppointmentId
-                    && x.DoctorId == appointment.DoctorId
-                    && x.Status != AppointmentStatus.Cancelled
-                    && x.Status != AppointmentStatus.NoShow
-                    && Overlaps(x.StartAt, x.EndAt, startTime, endTime));
-
-            if (overlapAppointment)
-                return Results.Conflict("Appointment is conflicted");
-            await using var transaction = await _context.Database.BeginTransactionAsync();
-            appointment.StartAt = startTime;
-            appointment.EndAt = endTime;
-            appointment.UpdatedAt = DateTime.UtcNow;
-            appointment.Status = AppointmentStatus.Rescheduling;
-            reschedulingRequest.ExpiresAt = DateTime.UtcNow;
-            _context.Appointments.Update(appointment);
-            _context.BookingTokens.Update(reschedulingRequest);
-            await _context.SaveChangesAsync();
-            await transaction.CommitAsync();
-            return Results.Ok(new
+            var reschedulingRequest = await _context.BookingTokens
+                .Where(x => x.Token == token && x.Action == "Reschedule" && x.ExpiresAt > DateTime.UtcNow)
+                .Include(bookingToken => bookingToken.Booking)
+                .ThenInclude(booking => booking.Appointment)
+                .FirstOrDefaultAsync();
+            
+            if (reschedulingRequest == null)
             {
-                isSuccess = true,
-                message = "Update successfully"
-            });
+                return Results.NotFound(new ApiResponse<object>(false, "Reschedule token not found or expired", null));
+            }
+            
+            var booking = reschedulingRequest.Booking;
+            
+            // Check if booking has an appointment (confirmed)
+            if (booking.Appointment != null)
+            {
+                var appointment = booking.Appointment;
+                
+                if (appointment.Status is AppointmentStatus.Cancelled or AppointmentStatus.NoShow)
+                    return Results.Conflict(new ApiResponse<object>(false, "Cannot reschedule cancelled appointment", null));
+
+                // Check overlap with other appointments
+                var overlapAppointment = await _context.Appointments.AsNoTracking()
+                    .AnyAsync(x => x.AppointmentId != appointment.AppointmentId
+                        && x.DoctorId == appointment.DoctorId
+                        && x.Status != AppointmentStatus.Cancelled
+                        && x.Status != AppointmentStatus.NoShow
+                        && Overlaps(x.StartAt, x.EndAt, startTime, endTime));
+
+                if (overlapAppointment)
+                    return Results.Conflict(new ApiResponse<object>(false, "Time slot is not available", null));
+                
+                await using var transaction = await _context.Database.BeginTransactionAsync();
+                
+                appointment.StartAt = startTime;
+                appointment.EndAt = endTime;
+                appointment.UpdatedAt = DateTime.UtcNow;
+                appointment.Status = AppointmentStatus.Rescheduling;
+                booking.StartAt = startTime;
+                booking.EndAt = endTime;
+                booking.UpdatedAt = DateTime.UtcNow;
+                reschedulingRequest.ExpiresAt = DateTime.UtcNow;
+                
+                await _context.SaveChangesAsync();
+                await transaction.CommitAsync();
+                
+                return Results.Ok(new ApiResponse<object>(true, "Appointment rescheduled successfully", new
+                {
+                    bookingId = booking.BookingId,
+                    appointmentId = appointment.AppointmentId,
+                    newStartAt = startTime,
+                    newEndAt = endTime
+                }));
+            }
+            else
+            {
+                // Booking not yet confirmed - just update the booking time
+                if (booking.Status == BookingStatus.Cancelled)
+                    return Results.Conflict(new ApiResponse<object>(false, "Cannot reschedule cancelled booking", null));
+                
+                // Check overlap with other bookings
+                var overlapBooking = await _context.Bookings.AsNoTracking()
+                    .AnyAsync(x => x.BookingId != booking.BookingId
+                        && x.DoctorId == booking.DoctorId
+                        && (x.Status == BookingStatus.Pending || x.Status == BookingStatus.Confirmed)
+                        && Overlaps(x.StartAt, x.EndAt, startTime, endTime));
+                
+                if (overlapBooking)
+                    return Results.Conflict(new ApiResponse<object>(false, "Time slot is not available", null));
+                
+                booking.StartAt = startTime;
+                booking.EndAt = endTime;
+                booking.UpdatedAt = DateTime.UtcNow;
+                reschedulingRequest.ExpiresAt = DateTime.UtcNow;
+                
+                await _context.SaveChangesAsync();
+                
+                return Results.Ok(new ApiResponse<object>(true, "Booking rescheduled successfully", new
+                {
+                    bookingId = booking.BookingId,
+                    newStartAt = startTime,
+                    newEndAt = endTime
+                }));
+            }
         }
 
 
@@ -442,31 +490,66 @@ namespace ClinicManagement_API.Features.booking_service.service
             var cancelRequest = await _context.BookingTokens
                                     .Where(x => x.Token == token && x.Action == "Cancel" && x.ExpiresAt > DateTime.UtcNow)
                                     .Include(bookingToken => bookingToken.Booking)
-                                    .ThenInclude(booking => booking.Appointment).FirstOrDefaultAsync()
-                                ?? throw new Exception("Not found cancel request");
-            var booking = cancelRequest.Booking;
-            var appointment = booking.Appointment ?? throw new Exception("Cannot get appointment information");
-            if (appointment.Status is AppointmentStatus.Cancelled or AppointmentStatus.NoShow)
-                return Results.Conflict("Cannot cancel cancelled appointment ");
-            int cutoffHours = 2;
-            if (appointment.StartAt < DateTime.UtcNow.AddHours(cutoffHours))
-                return Results.Conflict("Cannot cancel appointment within 2 hours");
-            await using var transaction = await _context.Database.BeginTransactionAsync();
-            appointment.Status = AppointmentStatus.Cancelled;
-            appointment.UpdatedAt = DateTime.UtcNow;
-            _context.Appointments.Update(appointment);
-            cancelRequest.ExpiresAt = DateTime.UtcNow;
-            _context.BookingTokens.Update(cancelRequest);
-
-
-            await _context.SaveChangesAsync();
-            await transaction.CommitAsync();
-            return Results.Ok(new
+                                    .ThenInclude(booking => booking.Appointment).FirstOrDefaultAsync();
+            
+            if (cancelRequest == null)
             {
-                bookingId = booking.BookingId,
-                appointmentId = appointment.AppointmentId,
-                status = appointment.Status
-            });
+                return Results.NotFound(new ApiResponse<object>(false, "Cancel token not found or expired", null));
+            }
+            
+            var booking = cancelRequest.Booking;
+            int cutoffHours = 2;
+            
+            // Check if booking has an appointment (confirmed)
+            if (booking.Appointment != null)
+            {
+                var appointment = booking.Appointment;
+                
+                if (appointment.Status is AppointmentStatus.Cancelled or AppointmentStatus.NoShow)
+                    return Results.Conflict(new ApiResponse<object>(false, "Appointment is already cancelled", null));
+                
+                if (appointment.StartAt < DateTime.UtcNow.AddHours(cutoffHours))
+                    return Results.Conflict(new ApiResponse<object>(false, "Cannot cancel appointment within 2 hours of start time", null));
+                
+                await using var transaction = await _context.Database.BeginTransactionAsync();
+                
+                appointment.Status = AppointmentStatus.Cancelled;
+                appointment.UpdatedAt = DateTime.UtcNow;
+                booking.Status = BookingStatus.Cancelled;
+                booking.UpdatedAt = DateTime.UtcNow;
+                cancelRequest.ExpiresAt = DateTime.UtcNow;
+                
+                await _context.SaveChangesAsync();
+                await transaction.CommitAsync();
+                
+                return Results.Ok(new ApiResponse<object>(true, "Appointment cancelled successfully", new
+                {
+                    bookingId = booking.BookingId,
+                    appointmentId = appointment.AppointmentId,
+                    status = "cancelled"
+                }));
+            }
+            else
+            {
+                // Booking not yet confirmed - just cancel the booking
+                if (booking.Status == BookingStatus.Cancelled)
+                    return Results.Conflict(new ApiResponse<object>(false, "Booking is already cancelled", null));
+                
+                if (booking.StartAt < DateTime.UtcNow.AddHours(cutoffHours))
+                    return Results.Conflict(new ApiResponse<object>(false, "Cannot cancel booking within 2 hours of start time", null));
+                
+                booking.Status = BookingStatus.Cancelled;
+                booking.UpdatedAt = DateTime.UtcNow;
+                cancelRequest.ExpiresAt = DateTime.UtcNow;
+                
+                await _context.SaveChangesAsync();
+                
+                return Results.Ok(new ApiResponse<object>(true, "Booking cancelled successfully", new
+                {
+                    bookingId = booking.BookingId,
+                    status = "cancelled"
+                }));
+            }
         }
 
 

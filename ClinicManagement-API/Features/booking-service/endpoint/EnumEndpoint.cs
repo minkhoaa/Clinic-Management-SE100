@@ -10,7 +10,7 @@ namespace ClinicManagement_API.Features.booking_service.endpoint
         {
             var app = route.MapGroup("/api/enums").WithTags("Enums");
 
-            app.MapGet("/genders", async () =>
+            app.MapGet("/genders", () =>
             {
                 return Enum.GetValues(typeof(Gender))
                 .Cast<Gender>()

@@ -1,5 +1,4 @@
 using ClinicManagement_API.Features.booking_service.handler;
-using Npgsql.EntityFrameworkCore.PostgreSQL.Infrastructure.Internal;
 
 namespace ClinicManagement_API.Features.booking_service.endpoint;
 
@@ -38,8 +37,9 @@ public static class BookingEndpoint
         app.MapPost("/", UserHandler.CreateBooking);
         app.MapGet("/{bookingId:guid}", UserHandler.GetBooking);
         app.MapPost("/{bookingId:guid}/confirm", UserHandler.ConfirmBooking);
-        app.MapPost("/{bookingId:guid}/cancel", UserHandler.CancelBooking);
-        app.MapPost("/{bookingId:guid}/reschedule", UserHandler.Rescheduling);
+        // Token-based cancel and reschedule (token from query: ?token=xxx)
+        app.MapPost("/cancel", UserHandler.CancelBooking);
+        app.MapPost("/reschedule", UserHandler.Rescheduling);
         app.MapPut("/{bookingId:guid}/status", UserHandler.UpdateAppointmentStatus);
     }
 
