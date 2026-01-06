@@ -40,3 +40,5 @@ public record CreatePatientDto(Guid ClinicId, string PatientCode, Gender Gender,
 public record DoctorTimeOffDto(Guid TimeOffId, Guid ClinicId, Guid DoctorId, DateTime StartAt, DateTime EndAt, string? Reason, Clinic Clinic, Doctor Doctor);
 public record AddDoctorTimeOffRequest(Guid ClinicId, Guid DoctorId, DateTime StartAt, DateTime EndAt, string? Reason);
 
+// Request to update appointment/booking status
+public record UpdateAppointmentStatusRequest(string Status); // confirmed | cancelled

@@ -17,6 +17,8 @@ public interface IPatientService
     Task<IResult> UpdatePatientAsync(Guid patientId, CreatePatientDto request);
     Task<IResult> DeletePatientAsync(Guid patientId);
     Task<IResult> GetAppointmentsAsync(ClaimsPrincipal user, Guid? patientId, string? phone);
+    Task<IResult> GetAppointmentDetailAsync(Guid id);
+    Task<IResult> CancelPatientAppointmentAsync(Guid id, CancelAppointmentRequest request);
 }
 
 public class PatientService : IPatientService
@@ -224,5 +226,69 @@ public class PatientService : IPatientService
             .ToListAsync();
 
         return Results.Ok(new ApiResponse<List<AppointmentListItemDto>>(true, "Appointments retrieved successfully", bookings));
+    }
+
+    public async Task<IResult> GetAppointmentDetailAsync(Guid id)
+    {
+        var booking = await _context.Bookings
+            .Include(b => b.Doctor)
+            .Include(b => b.Service)
+            .AsNoTracking()
+            .FirstOrDefaultAsync(b => b.BookingId == id);
+
+        if (booking == null)
+        {
+            return Results.NotFound(new ApiResponse<object>(false, "Appointment not found", null));
+        }
+
+        var response = new AppointmentListItemDto(
+            booking.BookingId,
+            booking.Service != null ? booking.Service.Name : "Khám tổng quát",
+            booking.Doctor != null ? booking.Doctor.FullName : "Chưa xác định",
+            booking.StartAt.ToString("dd/MM/yyyy"),
+            booking.StartAt.ToString("HH:mm"),
+            booking.Notes,
+            booking.Status.ToString().ToLower());
+
+        return Results.Ok(new ApiResponse<AppointmentListItemDto>(true, "Appointment retrieved successfully", response));
+    }
+
+    public async Task<IResult> CancelPatientAppointmentAsync(Guid id, CancelAppointmentRequest request)
+    {
+        var booking = await _context.Bookings
+            .Include(b => b.Appointment)
+            .FirstOrDefaultAsync(b => b.BookingId == id);
+
+        if (booking == null)
+        {
+            return Results.NotFound(new ApiResponse<object>(false, "Appointment not found", null));
+        }
+
+        if (booking.Status == BookingStatus.Cancelled)
+        {
+            return Results.BadRequest(new ApiResponse<object>(false, "Appointment is already cancelled", null));
+        }
+
+        // Check if cancellation is within allowed time (not within 2 hours of appointment)
+        if (booking.StartAt < DateTime.UtcNow.AddHours(2))
+        {
+            return Results.Conflict(new ApiResponse<object>(false, "Cannot cancel appointment within 2 hours of start time", null));
+        }
+
+        booking.Status = BookingStatus.Cancelled;
+        booking.Notes = string.IsNullOrEmpty(booking.Notes) 
+            ? $"Cancelled: {request.Reason}" 
+            : $"{booking.Notes} | Cancelled: {request.Reason}";
+        booking.UpdatedAt = DateTime.UtcNow;
+
+        // If there's an associated appointment, cancel it too
+        if (booking.Appointment != null)
+        {
+            booking.Appointment.Status = AppointmentStatus.Cancelled;
+            booking.Appointment.UpdatedAt = DateTime.UtcNow;
+        }
+
+        await _context.SaveChangesAsync();
+        return Results.Ok(new ApiResponse<object>(true, "Appointment cancelled successfully", new { success = true }));
     }
 }

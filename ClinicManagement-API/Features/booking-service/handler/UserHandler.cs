@@ -34,6 +34,11 @@ public static class UserHandler
         => svc.CancelAppointmentAsync(token);
     public static Task<IResult> Rescheduling(IUserService svc, string token, DateTime start, DateTime end)
         => svc.ReschedulingAppointmentAsync(token, start, end);
-    
+
+    public static Task<IResult> UpdateAppointmentStatus(Guid bookingId, UpdateAppointmentStatusRequest request, IUserService svc)
+        => svc.UpdateAppointmentStatusAsync(bookingId, request);
+
+    public static Task<IResult> GetTimeSlots(IUserService svc, Guid clinicId, Guid doctorId, DateOnly date)
+        => svc.GetTimeSlotsAsync(clinicId, doctorId, date);
 
 }

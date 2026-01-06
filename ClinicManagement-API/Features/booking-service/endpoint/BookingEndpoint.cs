@@ -40,6 +40,12 @@ public static class BookingEndpoint
         app.MapPost("/{bookingId:guid}/confirm", UserHandler.ConfirmBooking);
         app.MapPost("/{bookingId:guid}/cancel", UserHandler.CancelBooking);
         app.MapPost("/{bookingId:guid}/reschedule", UserHandler.Rescheduling);
-        
+        app.MapPut("/{bookingId:guid}/status", UserHandler.UpdateAppointmentStatus);
+    }
+
+    public static void MapTimeSlotsEndpoint(this IEndpointRouteBuilder route)
+    {
+        var app = route.MapGroup("/api/time-slots").WithTags("Time Slots");
+        app.MapGet("/", UserHandler.GetTimeSlots);
     }
 }

@@ -20,5 +20,7 @@ public static class PatientEndpoint
         // Appointments endpoint
         var appointments = route.MapGroup("/api/patient/appointments").WithTags("Patient Appointments");
         appointments.MapGet("/", PatientHandler.GetAppointments);
+        appointments.MapGet("/{id:guid}", PatientHandler.GetAppointmentDetail);
+        appointments.MapPut("/{id:guid}/cancel", PatientHandler.CancelAppointment);
     }
 }

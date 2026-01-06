@@ -30,4 +30,12 @@ public static class PatientHandler
 
     public static Task<IResult> DeletePatient(Guid patientId, IPatientService svc)
         => svc.DeletePatientAsync(patientId);
+
+    // Appointment detail
+    public static Task<IResult> GetAppointmentDetail(Guid id, IPatientService svc)
+        => svc.GetAppointmentDetailAsync(id);
+
+    // Cancel appointment
+    public static Task<IResult> CancelAppointment(Guid id, CancelAppointmentRequest request, IPatientService svc)
+        => svc.CancelPatientAppointmentAsync(id, request);
 }

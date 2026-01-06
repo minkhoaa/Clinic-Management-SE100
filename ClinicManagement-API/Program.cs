@@ -11,6 +11,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using System.ComponentModel;
 
 
 var builder = WebApplication.CreateBuilder(args);
@@ -41,7 +42,9 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         };
     });
 builder.Services.AddAuthorization();
-
+builder.Services.AddCors(option => option.AddPolicy("FE",
+policy => policy.WithOrigins("http://localhost:3000", "http://localhost:3001")
+    .AllowAnyHeader().AllowAnyMethod().AllowCredentials()));
 
 
 // DI
@@ -77,9 +80,10 @@ using (var scope = app.Services.CreateScope())
     var db = scope.ServiceProvider.GetRequiredService<ClinicDbContext>();
     await db.Database.MigrateAsync();
 }
-
+app.UseCors("FE");
 app.UseAuthentication();
 app.UseAuthorization();
+
 app.UseSwagger();
 app.UseSwaggerUI();
 

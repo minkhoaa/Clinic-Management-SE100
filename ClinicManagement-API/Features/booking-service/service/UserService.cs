@@ -21,6 +21,8 @@ namespace ClinicManagement_API.Features.booking_service.service
         Task<IResult> ConfirmBookingAsync(Guid bookingId);
         Task<IResult> CancelAppointmentAsync(string token);
         Task<IResult> ReschedulingAppointmentAsync(string token, DateTime startTime, DateTime startEnd);
+        Task<IResult> UpdateAppointmentStatusAsync(Guid id, UpdateAppointmentStatusRequest request);
+        Task<IResult> GetTimeSlotsAsync(Guid clinicId, Guid doctorId, DateOnly date);
 
     }
 
@@ -471,6 +473,92 @@ namespace ClinicManagement_API.Features.booking_service.service
 
         private static bool Overlaps(DateTime start1, DateTime end1, DateTime start2, DateTime end2)
             => start1 < end2 && start2 < end1;
+
+        public async Task<IResult> UpdateAppointmentStatusAsync(Guid id, UpdateAppointmentStatusRequest request)
+        {
+            var booking = await _context.Bookings
+                .Include(b => b.Appointment)
+                .FirstOrDefaultAsync(b => b.BookingId == id);
+
+            if (booking == null)
+            {
+                return Results.NotFound(new ApiResponse<object>(false, "Booking not found", null));
+            }
+
+            // Parse the status
+            if (!Enum.TryParse<BookingStatus>(request.Status, true, out var newStatus))
+            {
+                return Results.BadRequest(new ApiResponse<object>(false, "Invalid status. Use: confirmed or cancelled", null));
+            }
+
+            // Validate status transitions
+            if (newStatus != BookingStatus.Confirmed && newStatus != BookingStatus.Cancelled)
+            {
+                return Results.BadRequest(new ApiResponse<object>(false, "Only 'confirmed' or 'cancelled' status is allowed", null));
+            }
+
+            if (booking.Status == newStatus)
+            {
+                return Results.BadRequest(new ApiResponse<object>(false, $"Booking is already {newStatus.ToString().ToLower()}", null));
+            }
+
+            booking.Status = newStatus;
+            booking.UpdatedAt = DateTime.UtcNow;
+
+            // If confirming, create appointment if not exists
+            if (newStatus == BookingStatus.Confirmed && booking.Appointment == null)
+            {
+                var appointment = new Appointment
+                {
+                    AppointmentId = Guid.NewGuid(),
+                    ClinicId = booking.ClinicId,
+                    DoctorId = booking.DoctorId ?? throw new InvalidOperationException("Booking missing doctor"),
+                    ServiceId = booking.ServiceId,
+                    StartAt = booking.StartAt,
+                    EndAt = booking.EndAt,
+                    Source = booking.Channel,
+                    ContactFullName = booking.FullName,
+                    ContactPhone = booking.Phone,
+                    ContactEmail = booking.Email,
+                    Status = AppointmentStatus.Confirmed,
+                    BookingId = booking.BookingId,
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                };
+                booking.Appointment = appointment;
+                _context.Appointments.Add(appointment);
+            }
+
+            // If cancelling, cancel appointment too
+            if (newStatus == BookingStatus.Cancelled && booking.Appointment != null)
+            {
+                booking.Appointment.Status = AppointmentStatus.Cancelled;
+                booking.Appointment.UpdatedAt = DateTime.UtcNow;
+            }
+
+            await _context.SaveChangesAsync();
+            return Results.Ok(new ApiResponse<object>(true, $"Status updated to {newStatus.ToString().ToLower()}", 
+                new { appointment_id = id, new_status = newStatus.ToString().ToLower() }));
+        }
+
+        public async Task<IResult> GetTimeSlotsAsync(Guid clinicId, Guid doctorId, DateOnly date)
+        {
+            // Get available slots using existing logic
+            var slotsResult = await GetSlotsAsync(clinicId, doctorId, null, date);
+            
+            // Extract slots from the result
+            if (slotsResult is Microsoft.AspNetCore.Http.HttpResults.Ok<ApiResponse<IEnumerable<SlotDto>>> okResult)
+            {
+                var slots = okResult.Value?.Data;
+                if (slots != null)
+                {
+                    var timeSlots = slots.Select(s => s.StartAt.ToString("HH:mm")).ToList();
+                    return Results.Ok(new ApiResponse<List<string>>(true, "OK", timeSlots));
+                }
+            }
+            
+            return Results.Ok(new ApiResponse<List<string>>(true, "OK", new List<string>()));
+        }
     }
 
 }

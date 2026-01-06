@@ -68,3 +68,6 @@ public record AppointmentListItemDto(
     string Time,            // HH:mm
     string? Note,
     string Status);         // confirmed | pending | completed | cancelled
+
+// Request to cancel appointment
+public record CancelAppointmentRequest(string Reason);
