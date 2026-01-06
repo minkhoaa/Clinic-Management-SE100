@@ -27,6 +27,8 @@ public class ClinicDbContext : IdentityDbContext<User, Role, Guid>
     public DbSet<Patients> Patients => Set<Patients>();
     public DbSet<StaffUser> StaffUsers => Set<StaffUser>();
     public DbSet<DoctorTimeOff> DoctorTimeOffs => Set<DoctorTimeOff>();
+    public DbSet<MedicalRecord> MedicalRecords => Set<MedicalRecord>();
+    public DbSet<MedicalRecordAttachment> MedicalRecordAttachments => Set<MedicalRecordAttachment>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -218,9 +220,56 @@ public class ClinicDbContext : IdentityDbContext<User, Role, Guid>
                 .HasForeignKey(x => x.DoctorId);
             e.HasOne(x => x.Clinic)
                 .WithMany(a => a.DoctorTimeOffs)
-                .HasForeignKey(k => k.ClinicId)
-                ;
+                .HasForeignKey(k => k.ClinicId);
         });
 
+        // MedicalRecord configuration
+        modelBuilder.Entity<MedicalRecord>(e =>
+        {
+            e.ToTable("MedicalRecords");
+            e.HasKey(x => x.RecordId);
+            e.Property(x => x.Title).HasMaxLength(200).IsRequired();
+            e.Property(x => x.Diagnosis).HasMaxLength(1000);
+            e.Property(x => x.Treatment).HasMaxLength(1000);
+            e.Property(x => x.Prescription).HasMaxLength(2000);
+            e.Property(x => x.Notes).HasMaxLength(2000);
+            e.HasIndex(x => new { x.PatientId, x.RecordDate }).HasDatabaseName("IX_MedicalRecords_PatientDate");
+
+            e.HasOne(x => x.Patient)
+                .WithMany()
+                .HasForeignKey(x => x.PatientId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            e.HasOne(x => x.Doctor)
+                .WithMany()
+                .HasForeignKey(x => x.DoctorId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            e.HasOne(x => x.Clinic)
+                .WithMany()
+                .HasForeignKey(x => x.ClinicId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            e.HasOne(x => x.Appointment)
+                .WithMany()
+                .HasForeignKey(x => x.AppointmentId)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        // MedicalRecordAttachment configuration
+        modelBuilder.Entity<MedicalRecordAttachment>(e =>
+        {
+            e.ToTable("MedicalRecordAttachments");
+            e.HasKey(x => x.AttachmentId);
+            e.Property(x => x.FileName).HasMaxLength(256).IsRequired();
+            e.Property(x => x.StoredFileName).HasMaxLength(256).IsRequired();
+            e.Property(x => x.ContentType).HasMaxLength(100).IsRequired();
+            e.Property(x => x.Description).HasMaxLength(500);
+
+            e.HasOne(x => x.MedicalRecord)
+                .WithMany(m => m.Attachments)
+                .HasForeignKey(x => x.RecordId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
     }
 }

@@ -71,3 +71,35 @@ public record AppointmentListItemDto(
 
 // Request to cancel appointment
 public record CancelAppointmentRequest(string Reason);
+
+// Medical Record DTOs
+public record MedicalRecordListItemDto(
+    Guid Id,
+    string Title,
+    string Doctor,
+    string Date,            // Format: "DD/MM/YYYY"
+    string? Diagnosis,
+    string? Treatment,
+    string? Prescription,
+    string? Notes,
+    List<string> Attachments  // List of attachment IDs
+);
+
+public record MedicalRecordDetailDto(
+    Guid Id,
+    string Title,
+    string Doctor,
+    string Date,            // Format: "DD/MM/YYYY"
+    string? Diagnosis,
+    string? Treatment,
+    string? Prescription,
+    string? Notes,
+    List<AttachmentDto> Attachments
+);
+
+public record AttachmentDto(
+    Guid Id,
+    string FileName,
+    string ContentType,
+    long FileSize
+);

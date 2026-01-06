@@ -22,5 +22,11 @@ public static class PatientEndpoint
         appointments.MapGet("/", PatientHandler.GetAppointments);
         appointments.MapGet("/{id:guid}", PatientHandler.GetAppointmentDetail);
         appointments.MapPut("/{id:guid}/cancel", PatientHandler.CancelAppointment);
+
+        // Medical Records endpoints
+        var medicalRecords = route.MapGroup("/api/patient/medical-records").WithTags("Patient Medical Records");
+        medicalRecords.MapGet("/", PatientHandler.GetMedicalRecords).RequireAuthorization();
+        medicalRecords.MapGet("/{id:guid}", PatientHandler.GetMedicalRecordDetail).RequireAuthorization();
+        medicalRecords.MapGet("/{id:guid}/attachments/{attachmentId:guid}", PatientHandler.DownloadAttachment).RequireAuthorization();
     }
 }

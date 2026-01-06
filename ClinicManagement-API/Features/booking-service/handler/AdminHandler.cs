@@ -1,5 +1,6 @@
 using ClinicManagement_API.Features.booking_service.dto;
 using ClinicManagement_API.Features.booking_service.service;
+using ClinicManagement_API.Features.patient_service.dto;
 using Microsoft.AspNetCore.Mvc;
 
 namespace ClinicManagement_API.Features.booking_service.handler;

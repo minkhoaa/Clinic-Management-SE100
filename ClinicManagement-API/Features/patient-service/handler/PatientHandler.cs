@@ -38,4 +38,14 @@ public static class PatientHandler
     // Cancel appointment
     public static Task<IResult> CancelAppointment(Guid id, CancelAppointmentRequest request, IPatientService svc)
         => svc.CancelPatientAppointmentAsync(id, request);
+
+    // Medical Records
+    public static Task<IResult> GetMedicalRecords(ClaimsPrincipal user, IPatientService svc)
+        => svc.GetMedicalRecordsAsync(user);
+
+    public static Task<IResult> GetMedicalRecordDetail(Guid id, IPatientService svc)
+        => svc.GetMedicalRecordDetailAsync(id);
+
+    public static Task<IResult> DownloadAttachment(Guid id, Guid attachmentId, IPatientService svc)
+        => svc.DownloadAttachmentAsync(id, attachmentId);
 }

@@ -33,10 +33,6 @@ public record StaffUserDto(Guid UserId, Guid ClinicId, string Username, string F
 
 public record CreateStaffUserDto(Guid ClinicId, string Username, string FullName, StaffRole Role, bool IsActive);
 
-public record PatientDto(Guid PatientId, Guid ClinicId, string PatientCode, string FullName, Gender Gender, DateTime? Dob, string? PrimaryPhone, string? Email, string? AddressLine1, string? Note, Clinic Clinic);
-
-public record CreatePatientDto(Guid ClinicId, string PatientCode, Gender Gender, string FullName, string? PrimaryPhone, string? Email, string? AddressLine1, DateTime? Dob, string? Note);
-
 public record DoctorTimeOffDto(Guid TimeOffId, Guid ClinicId, Guid DoctorId, DateTime StartAt, DateTime EndAt, string? Reason, Clinic Clinic, Doctor Doctor);
 public record AddDoctorTimeOffRequest(Guid ClinicId, Guid DoctorId, DateTime StartAt, DateTime EndAt, string? Reason);
 

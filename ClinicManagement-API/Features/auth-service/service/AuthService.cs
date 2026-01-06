@@ -1,10 +1,8 @@
-using Azure.Core;
 using ClinicManagement_API.Domains.Enums;
 using ClinicManagement_API.Features.auth_service.dto;
 using ClinicManagement_API.Features.auth_service.helper;
 using ClinicManagement_API.Infrastructure.Persisstence;
 using Microsoft.AspNetCore.Identity;
-using Microsoft.VisualBasic;
 
 namespace ClinicManagement_API.Features.auth_service.service;
 
@@ -68,15 +66,24 @@ public class AuthService : IAuthService
 
     public async Task<IResult> Login(LoginDto dto)
     {
-        if (string.IsNullOrEmpty(dto.Username)) throw new Exception("Username is missing");
-        if (string.IsNullOrEmpty(dto.Password)) throw new Exception("Password is missing");
+        try
+        {
+            if (string.IsNullOrEmpty(dto.Username)) 
+                return Results.BadRequest("Username is missing");
+            if (string.IsNullOrEmpty(dto.Password)) 
+                return Results.BadRequest("Password is missing");
 
-        var existedUser = await _userManager.FindByNameAsync(dto.Username);
-        if (existedUser == null) return Results.BadRequest("User is not existed");
-        var isPasswordMatched = await _signInManager.CheckPasswordSignInAsync(existedUser, dto.Password, false);
-        if (!isPasswordMatched.Succeeded) return Results.BadRequest("Password is incorrect");
+            var existedUser = await _userManager.FindByNameAsync(dto.Username);
+            if (existedUser == null) return Results.BadRequest("User is not existed");
+            var isPasswordMatched = await _signInManager.CheckPasswordSignInAsync(existedUser, dto.Password, false);
+            if (!isPasswordMatched.Succeeded) return Results.BadRequest("Password is incorrect");
 
-        var token = await _jwtGenerator.CreateTokenAsync(existedUser);
-        return Results.Ok(new { existedUser.Id, accessToken = token }); 
+            var token = await _jwtGenerator.CreateTokenAsync(existedUser);
+            return Results.Ok(new { existedUser.Id, accessToken = token });
+        }
+        catch (Exception e)
+        {
+            return Results.BadRequest(e.Message);
+        }
     }
 }

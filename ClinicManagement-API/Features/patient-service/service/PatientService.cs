@@ -19,6 +19,11 @@ public interface IPatientService
     Task<IResult> GetAppointmentsAsync(ClaimsPrincipal user, Guid? patientId, string? phone);
     Task<IResult> GetAppointmentDetailAsync(Guid id);
     Task<IResult> CancelPatientAppointmentAsync(Guid id, CancelAppointmentRequest request);
+    
+    // Medical Records
+    Task<IResult> GetMedicalRecordsAsync(ClaimsPrincipal user);
+    Task<IResult> GetMedicalRecordDetailAsync(Guid id);
+    Task<IResult> DownloadAttachmentAsync(Guid recordId, Guid attachmentId);
 }
 
 public class PatientService : IPatientService
@@ -290,5 +295,101 @@ public class PatientService : IPatientService
 
         await _context.SaveChangesAsync();
         return Results.Ok(new ApiResponse<object>(true, "Appointment cancelled successfully", new { success = true }));
+    }
+
+    // Medical Records Implementation
+    public async Task<IResult> GetMedicalRecordsAsync(ClaimsPrincipal user)
+    {
+        var userIdClaim = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (string.IsNullOrEmpty(userIdClaim) || !Guid.TryParse(userIdClaim, out var userId))
+        {
+            return Results.Unauthorized();
+        }
+
+        var patient = await _context.Patients
+            .AsNoTracking()
+            .FirstOrDefaultAsync(p => p.UserId == userId);
+
+        if (patient == null)
+        {
+            return Results.NotFound(new ApiResponse<object>(false, "Patient not found", null));
+        }
+
+        var records = await _context.MedicalRecords
+            .Include(r => r.Doctor)
+            .Include(r => r.Attachments)
+            .AsNoTracking()
+            .Where(r => r.PatientId == patient.PatientId)
+            .OrderByDescending(r => r.RecordDate)
+            .Select(r => new MedicalRecordListItemDto(
+                r.RecordId,
+                r.Title,
+                r.Doctor.FullName,
+                r.RecordDate.ToString("dd/MM/yyyy"),
+                r.Diagnosis,
+                r.Treatment,
+                r.Prescription,
+                r.Notes,
+                r.Attachments.Select(a => a.AttachmentId.ToString()).ToList()
+            ))
+            .ToListAsync();
+
+        return Results.Ok(new ApiResponse<List<MedicalRecordListItemDto>>(true, "Medical records retrieved successfully", records));
+    }
+
+    public async Task<IResult> GetMedicalRecordDetailAsync(Guid id)
+    {
+        var record = await _context.MedicalRecords
+            .Include(r => r.Doctor)
+            .Include(r => r.Attachments)
+            .AsNoTracking()
+            .FirstOrDefaultAsync(r => r.RecordId == id);
+
+        if (record == null)
+        {
+            return Results.NotFound(new ApiResponse<object>(false, "Medical record not found", null));
+        }
+
+        var response = new MedicalRecordDetailDto(
+            record.RecordId,
+            record.Title,
+            record.Doctor.FullName,
+            record.RecordDate.ToString("dd/MM/yyyy"),
+            record.Diagnosis,
+            record.Treatment,
+            record.Prescription,
+            record.Notes,
+            record.Attachments.Select(a => new AttachmentDto(
+                a.AttachmentId,
+                a.FileName,
+                a.ContentType,
+                a.FileSize
+            )).ToList()
+        );
+
+        return Results.Ok(new ApiResponse<MedicalRecordDetailDto>(true, "Medical record retrieved successfully", response));
+    }
+
+    public async Task<IResult> DownloadAttachmentAsync(Guid recordId, Guid attachmentId)
+    {
+        var attachment = await _context.MedicalRecordAttachments
+            .AsNoTracking()
+            .FirstOrDefaultAsync(a => a.AttachmentId == attachmentId && a.RecordId == recordId);
+
+        if (attachment == null)
+        {
+            return Results.NotFound(new ApiResponse<object>(false, "Attachment not found", null));
+        }
+
+        // File storage path - adjust based on your storage strategy
+        var storagePath = Path.Combine("uploads", "medical-records", attachment.StoredFileName);
+        
+        if (!File.Exists(storagePath))
+        {
+            return Results.NotFound(new ApiResponse<object>(false, "File not found on server", null));
+        }
+
+        var fileStream = new FileStream(storagePath, FileMode.Open, FileAccess.Read);
+        return Results.File(fileStream, attachment.ContentType, attachment.FileName);
     }
 }
