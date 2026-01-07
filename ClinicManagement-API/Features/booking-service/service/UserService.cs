@@ -194,7 +194,7 @@ namespace ClinicManagement_API.Features.booking_service.service
                 while (slotStart + size <= end)
                 {
                     var slotEnd = slotStart + size;
-                    if (!blocked.Any(b => Overlaps(slotStart, slotEnd, b.StartAt, b.EndAt)))
+                    if (!blocked.Any(b => slotStart < b.EndAt && b.StartAt < slotEnd))
                     {
                         result.Add(new SlotDto(slotStart, slotEnd));
                     }
@@ -230,7 +230,7 @@ namespace ClinicManagement_API.Features.booking_service.service
 
             var hasTimeOffConflict = await _context.DoctorTimeOffs.AnyAsync(t =>
                 t.DoctorId == req.DoctorId &&
-                Overlaps(t.StartAt, t.EndAt, req.StartAt, req.EndAt));
+                (t.StartAt < req.EndAt && req.StartAt < t.EndAt));
 
             if (hasTimeOffConflict)
                 return Results.Conflict(new ApiResponse<AppointmentResponse>(false, "Doctor is on time off during the selected period.", null));
@@ -257,7 +257,7 @@ namespace ClinicManagement_API.Features.booking_service.service
                 a.DoctorId == req.DoctorId &&
                 a.Status != AppointmentStatus.Cancelled &&
                 a.Status != AppointmentStatus.NoShow &&
-                Overlaps(a.StartAt, a.EndAt, req.StartAt, req.EndAt));
+                (a.StartAt < req.EndAt && req.StartAt < a.EndAt));
 
             if (hasConflict)
                 return Results.Conflict(new ApiResponse<AppointmentResponse>(false, "Slot already taken", null));
@@ -340,7 +340,7 @@ namespace ClinicManagement_API.Features.booking_service.service
                 a.Status != AppointmentStatus.Cancelled &&
                 a.Status != AppointmentStatus.NoShow &&
                 a.Status != AppointmentStatus.Pending &&
-                Overlaps(a.StartAt, a.EndAt, appointment.StartAt, appointment.EndAt));
+                (a.StartAt < appointment.EndAt && appointment.StartAt < a.EndAt));
 
             if (conflict)
                 return Results.Conflict(new ApiResponse<AppointmentResponse>(false, "Slot already taken by confirmed appointment", null));
@@ -378,7 +378,7 @@ namespace ClinicManagement_API.Features.booking_service.service
                     && x.DoctorId == appointment.DoctorId
                     && x.Status != AppointmentStatus.Cancelled
                     && x.Status != AppointmentStatus.NoShow
-                    && Overlaps(x.StartAt, x.EndAt, startTime, endTime));
+                    && (x.StartAt < endTime && startTime < x.EndAt));
 
             if (hasConflict)
                 return Results.Conflict(new ApiResponse<object>(false, "Time slot is not available", null));
@@ -433,8 +433,6 @@ namespace ClinicManagement_API.Features.booking_service.service
 
 
 
-        private static bool Overlaps(DateTime start1, DateTime end1, DateTime start2, DateTime end2)
-            => start1 < end2 && start2 < end1;
 
         public async Task<IResult> UpdateAppointmentStatusAsync(Guid id, UpdateAppointmentStatusRequest request)
         {
