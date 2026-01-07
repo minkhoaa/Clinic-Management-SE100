@@ -103,3 +103,44 @@ public record AttachmentDto(
     string ContentType,
     long FileSize
 );
+
+// DTOs for Receptionist Patient APIs
+public record PatientListItemForReceptionistDto(
+    Guid Id,
+    string Name,
+    string Phone,
+    string? Email,
+    string? LastVisit,      // Format: "DD/MM/YYYY" or null
+    int TotalVisits
+);
+
+public record PatientDetailForReceptionistDto(
+    Guid Id,
+    string Name,
+    string Phone,
+    string? Email,
+    string? LastVisit,
+    int TotalVisits,
+    string? Dob,            // Format: "DD/MM/YYYY"
+    string? Address,
+    List<MedicalHistoryItemDto> MedicalHistory,
+    List<RecentAppointmentItemDto> Appointments
+);
+
+public record MedicalHistoryItemDto(
+    Guid Id,
+    string Date,
+    string Doctor,
+    string Service,
+    string? Diagnosis,
+    string? Notes
+);
+
+public record RecentAppointmentItemDto(
+    Guid Id,
+    string Date,
+    string Time,
+    string Doctor,
+    string Service,
+    string Status
+);

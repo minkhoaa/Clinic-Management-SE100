@@ -30,4 +30,14 @@ public static class ReceptionistHandler
 
     public static Task<IResult> CheckinAppointment(Guid id, IReceptionistService svc)
         => svc.CheckinAppointmentAsync(id);
+
+    // Queue
+    public static Task<IResult> GetQueue(string? date, string? search, Guid? clinicId, IReceptionistService svc)
+        => svc.GetQueueAsync(date, search, clinicId);
+
+    public static Task<IResult> CallPatient(Guid id, IReceptionistService svc)
+        => svc.CallPatientAsync(id);
+
+    public static Task<IResult> CompleteAppointment(Guid id, IReceptionistService svc)
+        => svc.CompleteAppointmentAsync(id);
 }

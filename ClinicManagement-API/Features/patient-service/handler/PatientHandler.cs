@@ -48,4 +48,11 @@ public static class PatientHandler
 
     public static Task<IResult> DownloadAttachment(Guid id, Guid attachmentId, IPatientService svc)
         => svc.DownloadAttachmentAsync(id, attachmentId);
+
+    // For Receptionist
+    public static Task<IResult> GetPatientsForReceptionist(string? search, Guid? clinicId, IPatientService svc)
+        => svc.GetPatientsForReceptionistAsync(search, clinicId);
+
+    public static Task<IResult> GetPatientDetailForReceptionist(Guid id, IPatientService svc)
+        => svc.GetPatientDetailForReceptionistAsync(id);
 }

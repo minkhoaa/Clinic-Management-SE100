@@ -24,6 +24,10 @@ public interface IPatientService
     Task<IResult> GetMedicalRecordsAsync(ClaimsPrincipal user);
     Task<IResult> GetMedicalRecordDetailAsync(Guid id);
     Task<IResult> DownloadAttachmentAsync(Guid recordId, Guid attachmentId);
+    
+    // For Receptionist
+    Task<IResult> GetPatientsForReceptionistAsync(string? search, Guid? clinicId);
+    Task<IResult> GetPatientDetailForReceptionistAsync(Guid id);
 }
 
 public class PatientService : IPatientService
@@ -375,5 +379,124 @@ public class PatientService : IPatientService
 
         var fileStream = new FileStream(storagePath, FileMode.Open, FileAccess.Read);
         return Results.File(fileStream, attachment.ContentType, attachment.FileName);
+    }
+
+    // ===== Receptionist Patient APIs =====
+
+    public async Task<IResult> GetPatientsForReceptionistAsync(string? search, Guid? clinicId)
+    {
+        var query = _context.Patients.AsNoTracking();
+
+        if (clinicId.HasValue)
+            query = query.Where(p => p.ClinicId == clinicId.Value);
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var searchLower = search.ToLower();
+            query = query.Where(p =>
+                p.FullName.ToLower().Contains(searchLower) ||
+                (p.PrimaryPhone != null && p.PrimaryPhone.Contains(search)) ||
+                (p.Email != null && p.Email.ToLower().Contains(searchLower)) ||
+                p.PatientCode.ToLower().Contains(searchLower));
+        }
+
+        var patients = await query
+            .Select(p => new
+            {
+                p.PatientId,
+                p.FullName,
+                p.PrimaryPhone,
+                p.Email,
+                LastAppointment = _context.Appointments
+                    .Where(a => a.PatientId == p.PatientId && a.Status == AppointmentStatus.Completed)
+                    .OrderByDescending(a => a.StartAt)
+                    .Select(a => a.StartAt)
+                    .FirstOrDefault(),
+                TotalVisits = _context.Appointments
+                    .Count(a => a.PatientId == p.PatientId && a.Status == AppointmentStatus.Completed)
+            })
+            .OrderBy(p => p.FullName)
+            .ToListAsync();
+
+        var result = patients.Select(p => new PatientListItemForReceptionistDto(
+            p.PatientId,
+            p.FullName,
+            p.PrimaryPhone ?? "",
+            p.Email,
+            p.LastAppointment != default ? p.LastAppointment.ToString("dd/MM/yyyy") : null,
+            p.TotalVisits
+        )).ToList();
+
+        return Results.Ok(new ApiResponse<List<PatientListItemForReceptionistDto>>(true, "OK", result));
+    }
+
+    public async Task<IResult> GetPatientDetailForReceptionistAsync(Guid id)
+    {
+        var patient = await _context.Patients
+            .AsNoTracking()
+            .FirstOrDefaultAsync(p => p.PatientId == id);
+
+        if (patient == null)
+            return Results.NotFound(new ApiResponse<object>(false, "Patient not found", null));
+
+        // Get medical history
+        var medicalHistory = await _context.MedicalRecords
+            .AsNoTracking()
+            .Include(m => m.Doctor)
+            .Where(m => m.PatientId == id)
+            .OrderByDescending(m => m.RecordDate)
+            .Take(10)
+            .Select(m => new MedicalHistoryItemDto(
+                m.RecordId,
+                m.RecordDate.ToString("dd/MM/yyyy"),
+                m.Doctor != null ? m.Doctor.FullName : "N/A",
+                m.Title,
+                m.Diagnosis,
+                m.Notes
+            ))
+            .ToListAsync();
+
+        // Get recent appointments
+        var appointments = await _context.Appointments
+            .AsNoTracking()
+            .Include(a => a.Doctor)
+            .Include(a => a.Service)
+            .Where(a => a.PatientId == id)
+            .OrderByDescending(a => a.StartAt)
+            .Take(10)
+            .Select(a => new RecentAppointmentItemDto(
+                a.AppointmentId,
+                a.StartAt.ToString("dd/MM/yyyy"),
+                a.StartAt.ToString("HH:mm"),
+                a.Doctor != null ? a.Doctor.FullName : "N/A",
+                a.Service != null ? a.Service.Name : "Khám tổng quát",
+                a.Status.ToString().ToLower()
+            ))
+            .ToListAsync();
+
+        // Calculate stats
+        var lastVisit = await _context.Appointments
+            .Where(a => a.PatientId == id && a.Status == AppointmentStatus.Completed)
+            .OrderByDescending(a => a.StartAt)
+            .Select(a => a.StartAt)
+            .FirstOrDefaultAsync();
+
+        var totalVisits = await _context.Appointments
+            .CountAsync(a => a.PatientId == id && a.Status == AppointmentStatus.Completed);
+
+        var result = new PatientDetailForReceptionistDto(
+            patient.PatientId,
+            patient.FullName,
+            patient.PrimaryPhone ?? "",
+            patient.Email,
+            lastVisit != default ? lastVisit.ToString("dd/MM/yyyy") : null,
+            totalVisits,
+            patient.Dob?.ToString("dd/MM/yyyy"),
+            patient.AddressLine1,
+            medicalHistory,
+            appointments
+        );
+
+        return Results.Ok(new ApiResponse<PatientDetailForReceptionistDto>(true, "OK", result));
     }
 }

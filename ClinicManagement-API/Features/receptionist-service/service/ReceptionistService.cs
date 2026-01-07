@@ -18,6 +18,11 @@ public interface IReceptionistService
     Task<IResult> ConfirmAppointmentAsync(Guid id);
     Task<IResult> CancelAppointmentAsync(Guid id, string? reason);
     Task<IResult> CheckinAppointmentAsync(Guid id);
+    
+    // Queue APIs
+    Task<IResult> GetQueueAsync(string? date, string? search, Guid? clinicId);
+    Task<IResult> CallPatientAsync(Guid id);
+    Task<IResult> CompleteAppointmentAsync(Guid id);
 }
 
 public class ReceptionistService : IReceptionistService
@@ -455,6 +460,112 @@ public class ReceptionistService : IReceptionistService
         "completed" => AppointmentStatus.Completed,
         "no-show" => AppointmentStatus.NoShow,
         _ => null
+    };
+
+    // ===== Queue APIs =====
+
+    public async Task<IResult> GetQueueAsync(string? date, string? search, Guid? clinicId)
+    {
+        // Parse date or use today
+        DateOnly targetDate;
+        if (!string.IsNullOrEmpty(date))
+        {
+            if (!DateOnly.TryParseExact(date, "dd-MM-yyyy", out targetDate))
+            {
+                return Results.BadRequest(new ApiResponse<object>(false, "Invalid date format. Use DD-MM-YYYY", null));
+            }
+        }
+        else
+        {
+            targetDate = DateOnly.FromDateTime(DateTime.UtcNow);
+        }
+
+        var startOfDay = targetDate.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
+        var endOfDay = targetDate.ToDateTime(TimeOnly.MaxValue, DateTimeKind.Utc);
+
+        // Query appointments for the day that are in queue-relevant statuses
+        var query = _context.Appointments
+            .Include(a => a.Service)
+            .AsNoTracking()
+            .Where(a => a.StartAt >= startOfDay && a.StartAt <= endOfDay)
+            .Where(a => a.Status == AppointmentStatus.Confirmed ||
+                        a.Status == AppointmentStatus.CheckedIn ||
+                        a.Status == AppointmentStatus.InProgress ||
+                        a.Status == AppointmentStatus.Completed);
+
+        if (clinicId.HasValue)
+            query = query.Where(a => a.ClinicId == clinicId.Value);
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var searchLower = search.ToLower();
+            query = query.Where(a => a.ContactFullName.ToLower().Contains(searchLower) ||  a.ContactPhone.Contains(search));
+        }
+
+        var appointments = await query
+            .OrderBy(a => a.StartAt)
+            .Select(a => new
+            {
+                a.AppointmentId,
+                a.ContactFullName,
+                ServiceName = a.Service != null ? a.Service.Name : "Khám tổng quát",
+                a.StartAt,
+                a.Status
+            })
+            .ToListAsync();
+
+        // Map to DTO with queue number
+        var result = appointments.Select((a, index) => new QueueItemDto(
+            a.AppointmentId,
+            index + 1,
+            a.ContactFullName,
+            a.ServiceName,
+            a.StartAt.ToString("HH:mm"),
+            MapQueueStatus(a.Status)
+        )).ToList();
+
+        return Results.Ok(new ApiResponse<List<QueueItemDto>>(true, "OK", result));
+    }
+
+    public async Task<IResult> CallPatientAsync(Guid id)
+    {
+        var appointment = await _context.Appointments.FindAsync(id);
+        if (appointment == null)
+            return Results.NotFound(new ApiResponse<object>(false, "Appointment not found", null));
+
+        if (appointment.Status != AppointmentStatus.CheckedIn)
+            return Results.BadRequest(new ApiResponse<object>(false, "Patient must be checked-in first", null));
+
+        appointment.Status = AppointmentStatus.InProgress;
+        appointment.UpdatedAt = DateTime.UtcNow;
+
+        await _context.SaveChangesAsync();
+        return Results.Ok(new ApiResponse<object>(true, "Patient called successfully", new { success = true }));
+    }
+
+    public async Task<IResult> CompleteAppointmentAsync(Guid id)
+    {
+        var appointment = await _context.Appointments.FindAsync(id);
+        if (appointment == null)
+            return Results.NotFound(new ApiResponse<object>(false, "Appointment not found", null));
+
+        if (appointment.Status != AppointmentStatus.InProgress)
+            return Results.BadRequest(new ApiResponse<object>(false, "Appointment must be in-progress to complete", null));
+
+        appointment.Status = AppointmentStatus.Completed;
+        appointment.UpdatedAt = DateTime.UtcNow;
+
+        await _context.SaveChangesAsync();
+        return Results.Ok(new ApiResponse<object>(true, "Appointment completed", new { success = true }));
+    }
+
+    private static string MapQueueStatus(AppointmentStatus status) => status switch
+    {
+        AppointmentStatus.Confirmed => "waiting",
+        AppointmentStatus.CheckedIn => "checked-in",
+        AppointmentStatus.InProgress => "in-progress",
+        AppointmentStatus.Completed => "completed",
+        _ => "unknown"
     };
 }
 

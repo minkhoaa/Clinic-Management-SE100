@@ -55,3 +55,12 @@ public record CancelReasonRequest(string? Reason);
 // Simple action response
 public record ActionResultDto(bool Success, Guid Id);
 
+// Queue item for receptionist queue view
+public record QueueItemDto(
+    Guid Id,
+    int Number,              // Số thứ tự
+    string Name,
+    string Service,
+    string Time,             // Giờ hẹn (HH:mm)
+    string Status            // "waiting" | "checked-in" | "in-progress" | "completed"
+);

@@ -386,7 +386,7 @@ namespace ClinicManagement_API.Features.booking_service.service
             appointment.StartAt = startTime;
             appointment.EndAt = endTime;
             appointment.UpdatedAt = DateTime.UtcNow;
-            reschedulingRequest.ExpiresAt = DateTime.UtcNow; // Invalidate token after use
+            reschedulingRequest.ExpiresAt = DateTime.UtcNow;
 
             await _context.SaveChangesAsync();
 
