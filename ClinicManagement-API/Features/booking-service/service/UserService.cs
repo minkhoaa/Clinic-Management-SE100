@@ -112,8 +112,8 @@ namespace ClinicManagement_API.Features.booking_service.service
             {
                 var dow = (byte)date.DayOfWeek;
                 var dayAvail = availabilities.Where(x => x.DayOfWeek == dow
-                    && (!x.EffectiveFrom.HasValue || x.EffectiveFrom.Value.Date <= date.ToDateTime(TimeOnly.MinValue))
-                    && (!x.EffectiveTo.HasValue || x.EffectiveTo.Value.Date >= date.ToDateTime(TimeOnly.MinValue)))
+                    && (!x.EffectiveFrom.HasValue || x.EffectiveFrom.Value.Date <= date.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc))
+                    && (!x.EffectiveTo.HasValue || x.EffectiveTo.Value.Date >= date.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc)))
                     ;
 
                 results.AddRange(dayAvail.Select(x => new AvailabilityDto(date, x.StartTime, x.EndTime, x.SlotSizeMin)));
@@ -166,23 +166,24 @@ namespace ClinicManagement_API.Features.booking_service.service
                 .ToListAsync();
 
             availabilities = availabilities.Where(x =>
-                (!x.EffectiveFrom.HasValue || x.EffectiveFrom.Value.Date <= date.ToDateTime(TimeOnly.MinValue)) &&
-                (!x.EffectiveTo.HasValue || x.EffectiveTo.Value.Date >= date.ToDateTime(TimeOnly.MinValue))
+                (!x.EffectiveFrom.HasValue || x.EffectiveFrom.Value.Date <= date.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc)) &&
+                (!x.EffectiveTo.HasValue || x.EffectiveTo.Value.Date >= date.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc))
             ).ToList();
 
+            var dateUtc = date.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
             var doctorTimeOffs = await _context.DoctorTimeOffs
-                .Where(t => t.DoctorId == doctorId && t.StartAt.Date <= date.ToDateTime(TimeOnly.MinValue) && t.EndAt.Date >= date.ToDateTime(TimeOnly.MinValue))
+                .Where(t => t.DoctorId == doctorId && t.StartAt.Date <= dateUtc && t.EndAt.Date >= dateUtc)
                 .Select(t => new { t.StartAt, t.EndAt })
                 .ToListAsync();
 
             var bookedAppointments = await _context.Appointments
-                .Where(a => a.DoctorId == doctorId && a.ClinicId == clinicId && a.StartAt.Date == date.ToDateTime(TimeOnly.MinValue).Date
+                .Where(a => a.DoctorId == doctorId && a.ClinicId == clinicId && a.StartAt.Date == dateUtc.Date
                     && a.Status != AppointmentStatus.Cancelled && a.Status != AppointmentStatus.NoShow)
                 .Select(a => new { a.StartAt, a.EndAt })
                 .ToListAsync();
 
             var bookedPending = await _context.Bookings
-                .Where(b => b.DoctorId == doctorId && b.ClinicId == clinicId && b.StartAt.Date == date.ToDateTime(TimeOnly.MinValue).Date
+                .Where(b => b.DoctorId == doctorId && b.ClinicId == clinicId && b.StartAt.Date == dateUtc.Date
                     && (b.Status == BookingStatus.Pending || b.Status == BookingStatus.Confirmed))
                 .Select(b => new { b.StartAt, b.EndAt })
                 .ToListAsync();
@@ -192,8 +193,8 @@ namespace ClinicManagement_API.Features.booking_service.service
             var result = new List<SlotDto>();
             foreach (var avail in availabilities)
             {
-                var slotStart = date.ToDateTime(TimeOnly.FromTimeSpan(avail.StartTime));
-                var end = date.ToDateTime(TimeOnly.FromTimeSpan(avail.EndTime));
+                var slotStart = date.ToDateTime(TimeOnly.FromTimeSpan(avail.StartTime), DateTimeKind.Utc);
+                var end = date.ToDateTime(TimeOnly.FromTimeSpan(avail.EndTime), DateTimeKind.Utc);
                 var size = TimeSpan.FromMinutes(avail.SlotSizeMin);
 
                 while (slotStart + size <= end)
