@@ -108,6 +108,8 @@ builder.Services.AddSwaggerGen(options =>
 
 
 var app = builder.Build();
+app.UseCors("FE");
+
 app.MapBookingClinicEndpoint();
 app.MapBookingServiceEndpoint();
 app.MapBookingDoctorEndpoint();
@@ -128,7 +130,6 @@ using (var scope = app.Services.CreateScope())
     var db = scope.ServiceProvider.GetRequiredService<ClinicDbContext>();
     await db.Database.MigrateAsync();
 }
-app.UseCors("FE");
 app.UseAuthentication();
 app.UseAuthorization();
 
