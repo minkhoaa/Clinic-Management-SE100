@@ -22,7 +22,6 @@ public sealed class Clinic
     public ICollection<Doctor> Doctors { get; set; } = new List<Doctor>();
     public ICollection<Service> Services { get; set; } = new List<Service>();
     public ICollection<DoctorAvailability> DoctorAvailabilities { get; set; } = new List<DoctorAvailability>();
-    public ICollection<Booking> Bookings { get; set; } = new List<Booking>();
     public ICollection<Appointment> Appointments { get; set; } = new List<Appointment>();
     public ICollection<StaffUser> StaffUsers { get; set; } = new List<StaffUser>();
     public ICollection<Patients> Patients { get; set; } = new List<Patients>();

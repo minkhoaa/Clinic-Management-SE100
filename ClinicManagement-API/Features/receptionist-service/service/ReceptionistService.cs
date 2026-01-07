@@ -35,13 +35,9 @@ public class ReceptionistService : IReceptionistService
         var tomorrow = today.AddDays(1);
 
         var query = _context.Appointments.AsNoTracking();
-        var bookingQuery = _context.Bookings.AsNoTracking();
 
         if (clinicId.HasValue)
-        {
             query = query.Where(a => a.ClinicId == clinicId.Value);
-            bookingQuery = bookingQuery.Where(b => b.ClinicId == clinicId.Value);
-        }
 
         // Patients waiting (CheckedIn status, today)
         var patientsWaiting = await query
@@ -54,13 +50,11 @@ public class ReceptionistService : IReceptionistService
             .Where(a => a.StartAt >= today && a.StartAt < tomorrow)
             .CountAsync();
 
-        // Pending confirmation (Pending bookings, today or future)
-        var pendingConfirmation = await bookingQuery
-            .Where(b => b.StartAt >= today)
-            .Where(b => b.Status == BookingStatus.Pending)
+        // Pending confirmation (Pending appointments, today or future)
+        var pendingConfirmation = await query
+            .Where(a => a.StartAt >= today)
+            .Where(a => a.Status == AppointmentStatus.Pending)
             .CountAsync();
-
-
 
         // Pending payment (placeholder - future feature)
         var pendingPayment = 0;
@@ -83,7 +77,7 @@ public class ReceptionistService : IReceptionistService
         var query = _context.Appointments
             .Include(a => a.Doctor)
             .Include(a => a.Service)
-            .Include(a => a.Booking)
+            
             .AsNoTracking()
             .Where(a => a.StartAt >= today && a.StartAt < tomorrow);
 
@@ -105,7 +99,7 @@ public class ReceptionistService : IReceptionistService
                 a.StartAt.ToString("HH:mm"),
                 (int)(a.EndAt - a.StartAt).TotalMinutes,
                 MapStatus(a.Status),
-                a.Booking != null ? a.Booking.Notes : null
+                a.Notes
             ))
             .ToListAsync();
 
@@ -125,7 +119,7 @@ public class ReceptionistService : IReceptionistService
         var query = _context.Appointments
             .Include(a => a.Doctor)
             .Include(a => a.Service)
-            .Include(a => a.Booking)
+            
             .AsNoTracking()
             .Where(a => a.StartAt >= startOfDay && a.StartAt <= endOfDay);
 
@@ -177,7 +171,7 @@ public class ReceptionistService : IReceptionistService
                 a.StartAt.ToString("HH:mm"),
                 (int)(a.EndAt - a.StartAt).TotalMinutes,
                 MapStatus(a.Status),
-                a.Booking != null ? a.Booking.Notes : null
+                a.Notes
             ))
             .ToListAsync();
 
@@ -352,16 +346,6 @@ public class ReceptionistService : IReceptionistService
             a.Status != AppointmentStatus.NoShow &&
             a.StartAt < endAt && a.EndAt > startAt);
 
-        // Also check Bookings for pending/confirmed
-        if (!hasConflict)
-        {
-            hasConflict = await _context.Bookings.AnyAsync(b =>
-                b.ClinicId == appointment.ClinicId &&
-                b.DoctorId == request.DoctorId &&
-                (b.Status == BookingStatus.Pending || b.Status == BookingStatus.Confirmed) &&
-                b.StartAt < endAt && b.EndAt > startAt);
-        }
-
         if (hasConflict)
         {
             return Results.Conflict(new ApiResponse<object>(false, "Time slot already taken", null));
@@ -453,7 +437,7 @@ public class ReceptionistService : IReceptionistService
     private static string MapStatus(AppointmentStatus status) => status switch
     {
         AppointmentStatus.Confirmed => "confirmed",
-        AppointmentStatus.Booked => "pending",
+        AppointmentStatus.Pending => "pending",
         AppointmentStatus.CheckedIn => "checked-in",
         AppointmentStatus.Cancelled => "cancelled",
         AppointmentStatus.InProgress => "checked-in",
@@ -465,7 +449,7 @@ public class ReceptionistService : IReceptionistService
     private static AppointmentStatus? ParseStatus(string status) => status.ToLower() switch
     {
         "confirmed" => AppointmentStatus.Confirmed,
-        "pending" => AppointmentStatus.Booked,
+        "pending" => AppointmentStatus.Pending,
         "checked-in" => AppointmentStatus.CheckedIn,
         "cancelled" => AppointmentStatus.Cancelled,
         "completed" => AppointmentStatus.Completed,

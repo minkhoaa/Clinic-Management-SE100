@@ -53,7 +53,7 @@ public static class DbSeeder
 
     private static async Task SeedRolesAsync(RoleManager<Role> roleManager)
     {
-        var roles = new[] { CustomRoles.Admin, CustomRoles.Receptionist, CustomRoles.User };
+        var roles = new[] { AppRoles.Admin, AppRoles.Receptionist, AppRoles.Doctor, AppRoles.User };
         foreach (var roleName in roles)
         {
             if (!await roleManager.RoleExistsAsync(roleName))
@@ -83,7 +83,7 @@ public static class DbSeeder
             var result = await userManager.CreateAsync(admin, adminPassword);
             if (result.Succeeded)
             {
-                await userManager.AddToRoleAsync(admin, CustomRoles.Admin);
+                await userManager.AddToRoleAsync(admin, AppRoles.Admin);
                 Console.WriteLine($"Created admin user: {adminUsername} / {adminPassword}");
             }
         }
@@ -471,7 +471,7 @@ public static class DbSeeder
                 ClinicId = clinic1.ClinicId,
                 Username = "letan1",
                 FullName = "Phạm Thị Lễ Tân",
-                Role = StaffRole.Receptionist,
+                Role = AppRoles.Receptionist,
                 IsActive = true
             },
             new StaffUser
@@ -480,7 +480,7 @@ public static class DbSeeder
                 ClinicId = clinic1.ClinicId,
                 Username = "admin_hg",
                 FullName = "Nguyễn Quản Lý",
-                Role = StaffRole.Admin,
+                Role = AppRoles.Admin,
                 IsActive = true
             },
             new StaffUser
@@ -489,7 +489,7 @@ public static class DbSeeder
                 ClinicId = clinic2.ClinicId,
                 Username = "letan2",
                 FullName = "Trần Văn Tiếp Tân",
-                Role = StaffRole.Receptionist,
+                Role = AppRoles.Receptionist,
                 IsActive = true
             }
         });

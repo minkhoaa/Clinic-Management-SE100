@@ -48,14 +48,14 @@ public class AuthService : IAuthService
             var addUserStatus = await _userManager.CreateAsync(user, dto.Password);
             if (!addUserStatus.Succeeded)
                 throw new Exception($"Cannot create new user {addUserStatus.Errors}");
-            var existedRole = await _roleManager.RoleExistsAsync(CustomRoles.User);
+            var existedRole = await _roleManager.RoleExistsAsync(AppRoles.User);
             if (!existedRole)
                 await _roleManager.CreateAsync(new Role()
                 {
-                    Name = CustomRoles.User
+                    Name = AppRoles.User
                 });
-            var isInRoles = await _userManager.IsInRoleAsync(user, CustomRoles.User);
-            if (!isInRoles) await _userManager.AddToRoleAsync(user, CustomRoles.User);
+            var isInRoles = await _userManager.IsInRoleAsync(user, AppRoles.User);
+            if (!isInRoles) await _userManager.AddToRoleAsync(user, AppRoles.User);
             return Results.Ok(new { isSuccess = true, message = "Register successfully", userId = user.Id });
         }
         catch (Exception e)

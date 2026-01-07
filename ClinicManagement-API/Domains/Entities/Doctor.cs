@@ -22,7 +22,6 @@ public sealed class Doctor
     public Clinic Clinic { get; set; } = default!;
     public ICollection<DoctorService> DoctorServices { get; set; } = new List<DoctorService>();
     public ICollection<DoctorAvailability> DoctorAvailabilities { get; set; } = new List<DoctorAvailability>();
-    public ICollection<Booking> Bookings { get; set; } = new List<Booking>();
     public ICollection<Appointment> Appointments { get; set; } = new List<Appointment>();
     public ICollection<DoctorTimeOff> DoctorTimeOffs { get; set; } = new List<DoctorTimeOff>();
 }

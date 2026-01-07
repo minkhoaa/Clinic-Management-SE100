@@ -35,12 +35,12 @@ public static class BookingEndpoint
     {
         var app = route.MapGroup("/api/appointments").WithTags("Appointments");
         app.MapPost("/", UserHandler.CreateBooking);
-        app.MapGet("/{bookingId:guid}", UserHandler.GetBooking);
-        app.MapPost("/{bookingId:guid}/confirm", UserHandler.ConfirmBooking);
+        app.MapGet("/{appointmentId:guid}", UserHandler.GetAppointment);
+        app.MapPost("/{appointmentId:guid}/confirm", UserHandler.ConfirmAppointment);
         // Token-based cancel and reschedule (token from query: ?token=xxx)
         app.MapPost("/cancel", UserHandler.CancelBooking);
         app.MapPost("/reschedule", UserHandler.Rescheduling);
-        app.MapPut("/{bookingId:guid}/status", UserHandler.UpdateAppointmentStatus);
+        app.MapPut("/{appointmentId:guid}/status", UserHandler.UpdateAppointmentStatus);
     }
 
     public static void MapTimeSlotsEndpoint(this IEndpointRouteBuilder route)

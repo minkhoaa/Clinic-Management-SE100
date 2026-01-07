@@ -20,6 +20,5 @@ public sealed class Service
 
     public Clinic Clinic { get; set; } = default!;
     public ICollection<DoctorService> DoctorServices { get; set; } = new List<DoctorService>();
-    public ICollection<Booking> Bookings { get; set; } = new List<Booking>();
     public ICollection<Appointment> Appointments { get; set; } = new List<Appointment>();
 }

@@ -1,5 +1,6 @@
 #nullable enable
 using System;
+using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 using ClinicManagement_API.Domains.Enums;
@@ -14,6 +15,7 @@ public sealed class Appointment
     public Guid ClinicId { get; set; }
     public Guid DoctorId { get; set; }
     public Guid? ServiceId { get; set; }
+    public Guid? PatientId { get; set; }
     public DateTime StartAt { get; set; }
     public DateTime EndAt { get; set; }
 
@@ -22,10 +24,8 @@ public sealed class Appointment
     public string ContactFullName { get; set; } = default!;
     public string ContactPhone { get; set; } = default!;
     public string? ContactEmail { get; set; }
-    public AppointmentStatus Status { get; set; } = AppointmentStatus.Booked;
-
-    public Guid? BookingId { get; set; }
-
+    public string? Notes { get; set; }
+    public AppointmentStatus Status { get; set; } = AppointmentStatus.Pending;
 
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
@@ -33,5 +33,7 @@ public sealed class Appointment
     public Clinic Clinic { get; set; } = default!;
     public Doctor Doctor { get; set; } = default!;
     public Service? Service { get; set; }
-    public Booking? Booking { get; set; }
+    public Patients? Patient { get; set; }
+    public ICollection<AppointmentToken> Tokens { get; set; } = new List<AppointmentToken>();
 }
+

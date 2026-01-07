@@ -35,6 +35,6 @@ public sealed class Patients
     public DateTime UpdatedAt { get; set; }
 
     public Clinic Clinic { get; set; } = default!;
-    public ICollection<Booking>? Bookings { get; set; }
+    public ICollection<Appointment>? Appointments { get; set; }
 }
 

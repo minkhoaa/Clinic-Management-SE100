@@ -1,3 +1,4 @@
+using ClinicManagement_API.Features.booking_service.handler;
 using ClinicManagement_API.Features.receptionist_service.handler;
 
 namespace ClinicManagement_API.Features.receptionist_service.endpoint;
@@ -21,5 +22,9 @@ public static class ReceptionistEndpoint
         receptionist.MapPut("/appointments/{id:guid}/confirm", ReceptionistHandler.ConfirmAppointment);
         receptionist.MapPut("/appointments/{id:guid}/cancel", ReceptionistHandler.CancelAppointment);
         receptionist.MapPut("/appointments/{id:guid}/checkin", ReceptionistHandler.CheckinAppointment);
+
+        // Patients (reuse AdminHandler)
+        receptionist.MapPost("/patients", AdminHandler.CreatePatient);
+        receptionist.MapPut("/patients/{patientId:guid}", AdminHandler.UpdatePatient);
     }
 }

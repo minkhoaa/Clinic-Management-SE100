@@ -24,14 +24,13 @@ public record CreateBookingRequest(
     string? Notes,
     AppointmentSource? Channel);
 
-public record BookingResponse(Guid BookingId, BookingStatus Status, string? CancelToken, string? RescheduleToken);
-public record AppointmentResponse(Guid AppointmentId, AppointmentStatus Status);
+public record AppointmentResponse(Guid AppointmentId, AppointmentStatus Status, string? CancelToken, string? RescheduleToken);
 
 public record CreateServiceRequest(Guid ClinicId, string Code, string Name, short? DefaultDurationMin, decimal? DefaultPrice, bool IsActive);
 
-public record StaffUserDto(Guid UserId, Guid ClinicId, string Username, string FullName, StaffRole Role, bool IsActive, Clinic Clinic);
+public record StaffUserDto(Guid UserId, Guid ClinicId, string Username, string FullName, string Role, bool IsActive, Clinic Clinic);
 
-public record CreateStaffUserDto(Guid ClinicId, string Username, string FullName, StaffRole Role, bool IsActive);
+public record CreateStaffUserDto(Guid ClinicId, string Username, string FullName, string Role, bool IsActive);
 
 public record DoctorTimeOffDto(Guid TimeOffId, Guid ClinicId, Guid DoctorId, DateTime StartAt, DateTime EndAt, string? Reason, Clinic Clinic, Doctor Doctor);
 public record AddDoctorTimeOffRequest(Guid ClinicId, Guid DoctorId, DateTime StartAt, DateTime EndAt, string? Reason);

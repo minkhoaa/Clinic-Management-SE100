@@ -3,6 +3,7 @@ using System;
 using ClinicManagement_API.Infrastructure.Persisstence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace ClinicManagement_API.Migrations
 {
     [DbContext(typeof(ClinicDbContext))]
-    partial class ClinicDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260107145058_UnifyRolesToString")]
+    partial class UnifyRolesToString
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -26,6 +29,9 @@ namespace ClinicManagement_API.Migrations
                 {
                     b.Property<Guid>("AppointmentId")
                         .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("BookingId")
                         .HasColumnType("uuid");
 
                     b.Property<Guid>("ClinicId")
@@ -54,13 +60,6 @@ namespace ClinicManagement_API.Migrations
                     b.Property<DateTime>("EndAt")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<string>("Notes")
-                        .HasMaxLength(1000)
-                        .HasColumnType("character varying(1000)");
-
-                    b.Property<Guid?>("PatientId")
-                        .HasColumnType("uuid");
-
                     b.Property<Guid?>("ServiceId")
                         .HasColumnType("uuid");
 
@@ -79,16 +78,17 @@ namespace ClinicManagement_API.Migrations
                         .ValueGeneratedOnAdd()
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)")
-                        .HasDefaultValue("Pending");
+                        .HasDefaultValue("Confirmed");
 
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
 
                     b.HasKey("AppointmentId");
 
-                    b.HasIndex("DoctorId");
+                    b.HasIndex("BookingId")
+                        .IsUnique();
 
-                    b.HasIndex("PatientId");
+                    b.HasIndex("DoctorId");
 
                     b.HasIndex("ServiceId");
 
@@ -103,19 +103,90 @@ namespace ClinicManagement_API.Migrations
                     b.ToTable("Appointments", (string)null);
                 });
 
-            modelBuilder.Entity("ClinicManagement_API.Domains.Entities.AppointmentToken", b =>
+            modelBuilder.Entity("ClinicManagement_API.Domains.Entities.Booking", b =>
                 {
-                    b.Property<Guid>("TokenId")
+                    b.Property<Guid>("BookingId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Channel")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasDefaultValue("Web");
+
+                    b.Property<Guid>("ClinicId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("DoctorId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Email")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
+                    b.Property<DateTime>("EndAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("FullName")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)");
+
+                    b.Property<string>("Notes")
+                        .HasColumnType("text");
+
+                    b.Property<Guid?>("PatientId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Phone")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<Guid?>("ServiceId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("StartAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasDefaultValue("Pending");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("BookingId");
+
+                    b.HasIndex("DoctorId");
+
+                    b.HasIndex("PatientId");
+
+                    b.HasIndex("ServiceId");
+
+                    b.HasIndex("ClinicId", "Status", "CreatedAt")
+                        .HasDatabaseName("IX_Bookings_List");
+
+                    b.ToTable("Bookings", (string)null);
+                });
+
+            modelBuilder.Entity("ClinicManagement_API.Domains.Entities.BookingToken", b =>
+                {
+                    b.Property<Guid>("BookingId")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
                     b.Property<string>("Action")
-                        .IsRequired()
                         .HasMaxLength(15)
                         .HasColumnType("character varying(15)");
-
-                    b.Property<Guid>("AppointmentId")
-                        .HasColumnType("uuid");
 
                     b.Property<DateTime>("ExpiresAt")
                         .HasColumnType("timestamp with time zone");
@@ -125,14 +196,12 @@ namespace ClinicManagement_API.Migrations
                         .HasMaxLength(64)
                         .HasColumnType("character varying(64)");
 
-                    b.HasKey("TokenId");
-
-                    b.HasIndex("AppointmentId");
+                    b.HasKey("BookingId", "Action");
 
                     b.HasIndex("Token")
                         .IsUnique();
 
-                    b.ToTable("AppointmentTokens", (string)null);
+                    b.ToTable("BookingTokens", (string)null);
                 });
 
             modelBuilder.Entity("ClinicManagement_API.Domains.Entities.Clinic", b =>
@@ -651,6 +720,11 @@ namespace ClinicManagement_API.Migrations
 
             modelBuilder.Entity("ClinicManagement_API.Domains.Entities.Appointment", b =>
                 {
+                    b.HasOne("ClinicManagement_API.Domains.Entities.Booking", "Booking")
+                        .WithOne("Appointment")
+                        .HasForeignKey("ClinicManagement_API.Domains.Entities.Appointment", "BookingId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.HasOne("ClinicManagement_API.Domains.Entities.Clinic", "Clinic")
                         .WithMany("Appointments")
                         .HasForeignKey("ClinicId")
@@ -663,32 +737,57 @@ namespace ClinicManagement_API.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("ClinicManagement_API.Domains.Entities.Patients", "Patient")
+                    b.HasOne("ClinicManagement_API.Domains.Entities.Service", "Service")
                         .WithMany("Appointments")
+                        .HasForeignKey("ServiceId");
+
+                    b.Navigation("Booking");
+
+                    b.Navigation("Clinic");
+
+                    b.Navigation("Doctor");
+
+                    b.Navigation("Service");
+                });
+
+            modelBuilder.Entity("ClinicManagement_API.Domains.Entities.Booking", b =>
+                {
+                    b.HasOne("ClinicManagement_API.Domains.Entities.Clinic", "Clinic")
+                        .WithMany("Bookings")
+                        .HasForeignKey("ClinicId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("ClinicManagement_API.Domains.Entities.Doctor", "Doctor")
+                        .WithMany("Bookings")
+                        .HasForeignKey("DoctorId");
+
+                    b.HasOne("ClinicManagement_API.Domains.Entities.Patients", "Patients")
+                        .WithMany("Bookings")
                         .HasForeignKey("PatientId");
 
                     b.HasOne("ClinicManagement_API.Domains.Entities.Service", "Service")
-                        .WithMany("Appointments")
+                        .WithMany("Bookings")
                         .HasForeignKey("ServiceId");
 
                     b.Navigation("Clinic");
 
                     b.Navigation("Doctor");
 
-                    b.Navigation("Patient");
+                    b.Navigation("Patients");
 
                     b.Navigation("Service");
                 });
 
-            modelBuilder.Entity("ClinicManagement_API.Domains.Entities.AppointmentToken", b =>
+            modelBuilder.Entity("ClinicManagement_API.Domains.Entities.BookingToken", b =>
                 {
-                    b.HasOne("ClinicManagement_API.Domains.Entities.Appointment", "Appointment")
+                    b.HasOne("ClinicManagement_API.Domains.Entities.Booking", "Booking")
                         .WithMany("Tokens")
-                        .HasForeignKey("AppointmentId")
+                        .HasForeignKey("BookingId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.Navigation("Appointment");
+                    b.Navigation("Booking");
                 });
 
             modelBuilder.Entity("ClinicManagement_API.Domains.Entities.Doctor", b =>
@@ -837,14 +936,18 @@ namespace ClinicManagement_API.Migrations
                     b.Navigation("Clinic");
                 });
 
-            modelBuilder.Entity("ClinicManagement_API.Domains.Entities.Appointment", b =>
+            modelBuilder.Entity("ClinicManagement_API.Domains.Entities.Booking", b =>
                 {
+                    b.Navigation("Appointment");
+
                     b.Navigation("Tokens");
                 });
 
             modelBuilder.Entity("ClinicManagement_API.Domains.Entities.Clinic", b =>
                 {
                     b.Navigation("Appointments");
+
+                    b.Navigation("Bookings");
 
                     b.Navigation("DoctorAvailabilities");
 
@@ -863,6 +966,8 @@ namespace ClinicManagement_API.Migrations
                 {
                     b.Navigation("Appointments");
 
+                    b.Navigation("Bookings");
+
                     b.Navigation("DoctorAvailabilities");
 
                     b.Navigation("DoctorServices");
@@ -877,12 +982,14 @@ namespace ClinicManagement_API.Migrations
 
             modelBuilder.Entity("ClinicManagement_API.Domains.Entities.Patients", b =>
                 {
-                    b.Navigation("Appointments");
+                    b.Navigation("Bookings");
                 });
 
             modelBuilder.Entity("ClinicManagement_API.Domains.Entities.Service", b =>
                 {
                     b.Navigation("Appointments");
+
+                    b.Navigation("Bookings");
 
                     b.Navigation("DoctorServices");
                 });

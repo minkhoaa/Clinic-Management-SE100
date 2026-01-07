@@ -12,7 +12,7 @@ namespace ClinicManagement_API.Domains.Entities
         public Guid ClinicId { get; set; }
         public string Username { get; set; } = default!;
         public string FullName { get; set; } = default!;
-        public StaffRole Role { get; set; } = StaffRole.Receptionist;
+        public string Role { get; set; } = AppRoles.Receptionist;
         public bool IsActive { get; set; } = true;
         public Clinic Clinic { get; set; } = default!;
     }

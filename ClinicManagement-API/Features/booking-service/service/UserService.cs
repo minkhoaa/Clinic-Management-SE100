@@ -17,8 +17,8 @@ namespace ClinicManagement_API.Features.booking_service.service
         Task<IResult> UpdateAvailability(Guid availId, UpdateDoctorAvailability request);
         Task<IResult> GetSlotsAsync(Guid clinicId, Guid doctorId, Guid? serviceId, DateOnly date);
         Task<IResult> CreateBookingAsync(CreateBookingRequest req);
-        Task<IResult> GetBookingAsync(Guid bookingId);
-        Task<IResult> ConfirmBookingAsync(Guid bookingId);
+        Task<IResult> GetAppointmentAsync(Guid appointmentId);
+        Task<IResult> ConfirmAppointmentAsync(Guid appointmentId);
         Task<IResult> CancelAppointmentAsync(string token);
         Task<IResult> ReschedulingAppointmentAsync(string token, DateTime startTime, DateTime startEnd);
         Task<IResult> UpdateAppointmentStatusAsync(Guid id, UpdateAppointmentStatusRequest request);
@@ -182,13 +182,7 @@ namespace ClinicManagement_API.Features.booking_service.service
                 .Select(a => new { a.StartAt, a.EndAt })
                 .ToListAsync();
 
-            var bookedPending = await _context.Bookings
-                .Where(b => b.DoctorId == doctorId && b.ClinicId == clinicId && b.StartAt.Date == dateUtc.Date
-                    && (b.Status == BookingStatus.Pending || b.Status == BookingStatus.Confirmed))
-                .Select(b => new { b.StartAt, b.EndAt })
-                .ToListAsync();
-
-            var blocked = bookedAppointments.Concat(bookedPending).Concat(doctorTimeOffs).ToList();
+            var blocked = bookedAppointments.Concat(doctorTimeOffs).ToList();
 
             var result = new List<SlotDto>();
             foreach (var avail in availabilities)
@@ -215,23 +209,23 @@ namespace ClinicManagement_API.Features.booking_service.service
         {
             var clinic = await _context.Clinics.FindAsync(req.ClinicId);
             if (clinic is null)
-                return Results.BadRequest(new ApiResponse<BookingResponse>(false, "Clinic not found", null));
+                return Results.BadRequest(new ApiResponse<AppointmentResponse>(false, "Clinic not found", null));
 
             var doctor = await _context.Doctors.FindAsync(req.DoctorId);
             if (doctor is null || doctor.ClinicId != req.ClinicId)
-                return Results.BadRequest(new ApiResponse<BookingResponse>(false, "Doctor not found", null));
+                return Results.BadRequest(new ApiResponse<AppointmentResponse>(false, "Doctor not found", null));
 
             if (req.ServiceId.HasValue)
             {
                 var serviceExists = await _context.Services.AnyAsync(x => x.ServiceId == req.ServiceId && x.ClinicId == req.ClinicId);
                 if (!serviceExists)
-                    return Results.BadRequest(new ApiResponse<BookingResponse>(false, "Service not found", null));
+                    return Results.BadRequest(new ApiResponse<AppointmentResponse>(false, "Service not found", null));
 
                 var doctorSupportsService = await _context.DoctorServices.AnyAsync(ds =>
                     ds.DoctorId == req.DoctorId && ds.ServiceId == req.ServiceId && ds.IsEnabled);
 
                 if (!doctorSupportsService)
-                    return Results.BadRequest(new ApiResponse<BookingResponse>(false, "Doctor does not offer this service", null));
+                    return Results.BadRequest(new ApiResponse<AppointmentResponse>(false, "Doctor does not offer this service", null));
             }
 
             var hasTimeOffConflict = await _context.DoctorTimeOffs.AnyAsync(t =>
@@ -239,7 +233,7 @@ namespace ClinicManagement_API.Features.booking_service.service
                 Overlaps(t.StartAt, t.EndAt, req.StartAt, req.EndAt));
 
             if (hasTimeOffConflict)
-                return Results.Conflict(new ApiResponse<BookingResponse>(false, "Doctor is on time off during the selected period.", null));
+                return Results.Conflict(new ApiResponse<AppointmentResponse>(false, "Doctor is on time off during the selected period.", null));
 
             // Validate slot inside availability
             var date = DateOnly.FromDateTime(req.StartAt);
@@ -255,9 +249,9 @@ namespace ClinicManagement_API.Features.booking_service.service
                 req.EndAt.TimeOfDay <= x.EndTime);
 
             if (!inAvail)
-                return Results.UnprocessableEntity(new ApiResponse<BookingResponse>(false, "Selected time is outside availability", null));
+                return Results.UnprocessableEntity(new ApiResponse<AppointmentResponse>(false, "Selected time is outside availability", null));
 
-            // Conflict check
+            // Conflict check - only check Appointments (no separate Bookings anymore)
             var hasConflict = await _context.Appointments.AnyAsync(a =>
                 a.ClinicId == req.ClinicId &&
                 a.DoctorId == req.DoctorId &&
@@ -265,292 +259,176 @@ namespace ClinicManagement_API.Features.booking_service.service
                 a.Status != AppointmentStatus.NoShow &&
                 Overlaps(a.StartAt, a.EndAt, req.StartAt, req.EndAt));
 
-            if (!hasConflict)
-            {
-                hasConflict = await _context.Bookings.AnyAsync(b =>
-                    b.ClinicId == req.ClinicId &&
-                    b.DoctorId == req.DoctorId &&
-                    (b.Status == BookingStatus.Pending || b.Status == BookingStatus.Confirmed) &&
-                    Overlaps(b.StartAt, b.EndAt, req.StartAt, req.EndAt));
-            }
-
             if (hasConflict)
-                return Results.Conflict(new ApiResponse<BookingResponse>(false, "Slot already taken", null));
+                return Results.Conflict(new ApiResponse<AppointmentResponse>(false, "Slot already taken", null));
 
-            var channel = req.Channel ?? AppointmentSource.Web;
+            var source = req.Channel ?? AppointmentSource.Web;
 
-            var booking = new Booking
+            var appointment = new Appointment
             {
-                BookingId = Guid.NewGuid(),
+                AppointmentId = Guid.NewGuid(),
                 ClinicId = req.ClinicId,
                 DoctorId = req.DoctorId,
                 ServiceId = req.ServiceId,
                 PatientId = req.PatientId,
                 StartAt = req.StartAt,
                 EndAt = req.EndAt,
-                FullName = req.FullName,
-                Phone = req.Phone,
-                Email = req.Email,
+                ContactFullName = req.FullName,
+                ContactPhone = req.Phone,
+                ContactEmail = req.Email,
                 Notes = req.Notes,
-                Channel = channel,
-                Status = BookingStatus.Pending,
+                Source = source,
+                Status = AppointmentStatus.Pending,
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow
             };
 
             var cancelToken = Guid.NewGuid().ToString("N") + Guid.NewGuid().ToString("N");
             var reschedulingToken = Guid.NewGuid().ToString("N") + Guid.NewGuid().ToString("N");
-            var cancel = new BookingToken
+            var cancel = new AppointmentToken
             {
-                BookingId = booking.BookingId,
+                AppointmentId = appointment.AppointmentId,
                 Action = "Cancel",
                 Token = cancelToken,
-                ExpiresAt = booking.StartAt
+                ExpiresAt = appointment.StartAt
             };
-            var reschedule = new BookingToken()
+            var reschedule = new AppointmentToken()
             {
-                BookingId = booking.BookingId,
+                AppointmentId = appointment.AppointmentId,
                 Action = "Reschedule",
                 Token = reschedulingToken,
-                ExpiresAt = booking.StartAt
+                ExpiresAt = appointment.StartAt
             };
 
-
-            booking.Tokens.Add(cancel);
-            booking.Tokens.Add(reschedule);
-
-            _context.Bookings.Add(booking);
-            await _context.SaveChangesAsync();
-
-            return Results.Created($"/bookings/{booking.BookingId}", new ApiResponse<BookingResponse>(true, "Created", new BookingResponse(booking.BookingId, booking.Status, cancelToken, null)));
-        }
-
-        public async Task<IResult> GetBookingAsync(Guid bookingId)
-        {
-            var booking = await _context.Bookings
-                .Include(b => b.Tokens)
-                .FirstOrDefaultAsync(x => x.BookingId == bookingId);
-
-            if (booking == null) return Results.NotFound(new ApiResponse<BookingResponse>(false, "Not found", null));
-
-            var cancelToken = booking.Tokens.FirstOrDefault(t => t.Action == "Cancel")?.Token;
-            var rescheduleToken = booking.Tokens.FirstOrDefault(t => t.Action == "Reschedule")?.Token;
-
-            return Results.Ok(new ApiResponse<BookingResponse>(true, "OK", new BookingResponse(booking.BookingId, booking.Status, cancelToken, rescheduleToken)));
-        }
-
-        public async Task<IResult> ConfirmBookingAsync(Guid bookingId)
-        {
-            var booking = await _context.Bookings.FirstOrDefaultAsync(x => x.BookingId == bookingId);
-            if (booking == null)
-                return Results.NotFound(new ApiResponse<AppointmentResponse>(false, "Not found", null));
-
-            if (booking.Status != BookingStatus.Pending)
-                return Results.BadRequest(new ApiResponse<AppointmentResponse>(false, "Booking is not pending", null));
-
-            var conflict = await _context.Appointments.AnyAsync(a =>
-                a.ClinicId == booking.ClinicId &&
-                a.DoctorId == booking.DoctorId &&
-                a.Status != AppointmentStatus.Cancelled &&
-                a.Status != AppointmentStatus.NoShow &&
-                Overlaps(a.StartAt, a.EndAt, booking.StartAt, booking.EndAt));
-
-            if (!conflict)
-            {
-                conflict = await _context.Bookings.AnyAsync(b =>
-                    b.BookingId != booking.BookingId &&
-                    b.ClinicId == booking.ClinicId &&
-                    b.DoctorId == booking.DoctorId &&
-                    (b.Status == BookingStatus.Pending || b.Status == BookingStatus.Confirmed) &&
-                    Overlaps(b.StartAt, b.EndAt, booking.StartAt, booking.EndAt));
-            }
-
-            if (conflict)
-                return Results.Conflict(new ApiResponse<AppointmentResponse>(false, "Slot already taken", null));
-
-            var appointment = new Appointment
-            {
-                AppointmentId = Guid.NewGuid(),
-                ClinicId = booking.ClinicId,
-                DoctorId = booking.DoctorId ?? throw new InvalidOperationException("Booking missing doctor"),
-                ServiceId = booking.ServiceId,
-                StartAt = booking.StartAt,
-                EndAt = booking.EndAt,
-                Source = booking.Channel,
-                ContactFullName = booking.FullName,
-                ContactPhone = booking.Phone,
-                ContactEmail = booking.Email,
-                Status = AppointmentStatus.Confirmed,
-                BookingId = booking.BookingId,
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow
-            };
-
-            booking.Status = BookingStatus.Confirmed;
-            booking.Appointment = appointment;
-            booking.UpdatedAt = DateTime.UtcNow;
+            appointment.Tokens.Add(cancel);
+            appointment.Tokens.Add(reschedule);
 
             _context.Appointments.Add(appointment);
             await _context.SaveChangesAsync();
 
-            return Results.Created($"/appointments/{appointment.AppointmentId}", new ApiResponse<AppointmentResponse>(true, "Created", new AppointmentResponse(appointment.AppointmentId, appointment.Status)));
+            return Results.Created($"/appointments/{appointment.AppointmentId}", new ApiResponse<AppointmentResponse>(true, "Created", new AppointmentResponse(appointment.AppointmentId, appointment.Status, cancelToken, reschedulingToken)));
+        }
+
+        public async Task<IResult> GetAppointmentAsync(Guid appointmentId)
+        {
+            var appointment = await _context.Appointments
+                .Include(a => a.Tokens)
+                .FirstOrDefaultAsync(x => x.AppointmentId == appointmentId);
+
+            if (appointment == null) return Results.NotFound(new ApiResponse<AppointmentResponse>(false, "Not found", null));
+
+            var cancelToken = appointment.Tokens.FirstOrDefault(t => t.Action == "Cancel")?.Token;
+            var rescheduleToken = appointment.Tokens.FirstOrDefault(t => t.Action == "Reschedule")?.Token;
+
+            return Results.Ok(new ApiResponse<AppointmentResponse>(true, "OK", new AppointmentResponse(appointment.AppointmentId, appointment.Status, cancelToken, rescheduleToken)));
+        }
+
+        public async Task<IResult> ConfirmAppointmentAsync(Guid appointmentId)
+        {
+            var appointment = await _context.Appointments.FirstOrDefaultAsync(x => x.AppointmentId == appointmentId);
+            if (appointment == null)
+                return Results.NotFound(new ApiResponse<AppointmentResponse>(false, "Not found", null));
+
+            if (appointment.Status != AppointmentStatus.Pending)
+                return Results.BadRequest(new ApiResponse<AppointmentResponse>(false, "Appointment is not pending", null));
+
+            // Check for conflicts with other confirmed appointments
+            var conflict = await _context.Appointments.AnyAsync(a =>
+                a.AppointmentId != appointmentId &&
+                a.ClinicId == appointment.ClinicId &&
+                a.DoctorId == appointment.DoctorId &&
+                a.Status != AppointmentStatus.Cancelled &&
+                a.Status != AppointmentStatus.NoShow &&
+                a.Status != AppointmentStatus.Pending &&
+                Overlaps(a.StartAt, a.EndAt, appointment.StartAt, appointment.EndAt));
+
+            if (conflict)
+                return Results.Conflict(new ApiResponse<AppointmentResponse>(false, "Slot already taken by confirmed appointment", null));
+
+            appointment.Status = AppointmentStatus.Confirmed;
+            appointment.UpdatedAt = DateTime.UtcNow;
+
+            await _context.SaveChangesAsync();
+
+            var cancelToken = appointment.Tokens.FirstOrDefault(t => t.Action == "Cancel")?.Token;
+            var rescheduleToken = appointment.Tokens.FirstOrDefault(t => t.Action == "Reschedule")?.Token;
+
+            return Results.Ok(new ApiResponse<AppointmentResponse>(true, "Appointment confirmed", new AppointmentResponse(appointment.AppointmentId, appointment.Status, cancelToken, rescheduleToken)));
         }
 
 
         public async Task<IResult> ReschedulingAppointmentAsync(string token, DateTime startTime, DateTime endTime)
         {
-            var reschedulingRequest = await _context.BookingTokens
+            var reschedulingRequest = await _context.AppointmentTokens
                 .Where(x => x.Token == token && x.Action == "Reschedule" && x.ExpiresAt > DateTime.UtcNow)
-                .Include(bookingToken => bookingToken.Booking)
-                .ThenInclude(booking => booking.Appointment)
+                .Include(t => t.Appointment)
                 .FirstOrDefaultAsync();
-            
+
             if (reschedulingRequest == null)
-            {
                 return Results.NotFound(new ApiResponse<object>(false, "Reschedule token not found or expired", null));
-            }
-            
-            var booking = reschedulingRequest.Booking;
-            
-            // Check if booking has an appointment (confirmed)
-            if (booking.Appointment != null)
-            {
-                var appointment = booking.Appointment;
-                
-                if (appointment.Status is AppointmentStatus.Cancelled or AppointmentStatus.NoShow)
-                    return Results.Conflict(new ApiResponse<object>(false, "Cannot reschedule cancelled appointment", null));
 
-                // Check overlap with other appointments
-                var overlapAppointment = await _context.Appointments.AsNoTracking()
-                    .AnyAsync(x => x.AppointmentId != appointment.AppointmentId
-                        && x.DoctorId == appointment.DoctorId
-                        && x.Status != AppointmentStatus.Cancelled
-                        && x.Status != AppointmentStatus.NoShow
-                        && Overlaps(x.StartAt, x.EndAt, startTime, endTime));
+            var appointment = reschedulingRequest.Appointment;
 
-                if (overlapAppointment)
-                    return Results.Conflict(new ApiResponse<object>(false, "Time slot is not available", null));
-                
-                await using var transaction = await _context.Database.BeginTransactionAsync();
-                
-                appointment.StartAt = startTime;
-                appointment.EndAt = endTime;
-                appointment.UpdatedAt = DateTime.UtcNow;
-                appointment.Status = AppointmentStatus.Rescheduling;
-                booking.StartAt = startTime;
-                booking.EndAt = endTime;
-                booking.UpdatedAt = DateTime.UtcNow;
-                reschedulingRequest.ExpiresAt = DateTime.UtcNow;
-                
-                await _context.SaveChangesAsync();
-                await transaction.CommitAsync();
-                
-                return Results.Ok(new ApiResponse<object>(true, "Appointment rescheduled successfully", new
-                {
-                    bookingId = booking.BookingId,
-                    appointmentId = appointment.AppointmentId,
-                    newStartAt = startTime,
-                    newEndAt = endTime
-                }));
-            }
-            else
+            if (appointment.Status is AppointmentStatus.Cancelled or AppointmentStatus.NoShow)
+                return Results.Conflict(new ApiResponse<object>(false, "Cannot reschedule cancelled appointment", null));
+
+            // Check overlap with other appointments
+            var hasConflict = await _context.Appointments.AsNoTracking()
+                .AnyAsync(x => x.AppointmentId != appointment.AppointmentId
+                    && x.DoctorId == appointment.DoctorId
+                    && x.Status != AppointmentStatus.Cancelled
+                    && x.Status != AppointmentStatus.NoShow
+                    && Overlaps(x.StartAt, x.EndAt, startTime, endTime));
+
+            if (hasConflict)
+                return Results.Conflict(new ApiResponse<object>(false, "Time slot is not available", null));
+
+            appointment.StartAt = startTime;
+            appointment.EndAt = endTime;
+            appointment.UpdatedAt = DateTime.UtcNow;
+            reschedulingRequest.ExpiresAt = DateTime.UtcNow; // Invalidate token after use
+
+            await _context.SaveChangesAsync();
+
+            return Results.Ok(new ApiResponse<object>(true, "Appointment rescheduled successfully", new
             {
-                // Booking not yet confirmed - just update the booking time
-                if (booking.Status == BookingStatus.Cancelled)
-                    return Results.Conflict(new ApiResponse<object>(false, "Cannot reschedule cancelled booking", null));
-                
-                // Check overlap with other bookings
-                var overlapBooking = await _context.Bookings.AsNoTracking()
-                    .AnyAsync(x => x.BookingId != booking.BookingId
-                        && x.DoctorId == booking.DoctorId
-                        && (x.Status == BookingStatus.Pending || x.Status == BookingStatus.Confirmed)
-                        && Overlaps(x.StartAt, x.EndAt, startTime, endTime));
-                
-                if (overlapBooking)
-                    return Results.Conflict(new ApiResponse<object>(false, "Time slot is not available", null));
-                
-                booking.StartAt = startTime;
-                booking.EndAt = endTime;
-                booking.UpdatedAt = DateTime.UtcNow;
-                reschedulingRequest.ExpiresAt = DateTime.UtcNow;
-                
-                await _context.SaveChangesAsync();
-                
-                return Results.Ok(new ApiResponse<object>(true, "Booking rescheduled successfully", new
-                {
-                    bookingId = booking.BookingId,
-                    newStartAt = startTime,
-                    newEndAt = endTime
-                }));
-            }
+                appointmentId = appointment.AppointmentId,
+                newStartAt = startTime,
+                newEndAt = endTime
+            }));
         }
 
 
         public async Task<IResult> CancelAppointmentAsync(string token)
         {
-            var cancelRequest = await _context.BookingTokens
-                                    .Where(x => x.Token == token && x.Action == "Cancel" && x.ExpiresAt > DateTime.UtcNow)
-                                    .Include(bookingToken => bookingToken.Booking)
-                                    .ThenInclude(booking => booking.Appointment).FirstOrDefaultAsync();
-            
+            var cancelRequest = await _context.AppointmentTokens
+                .Where(x => x.Token == token && x.Action == "Cancel" && x.ExpiresAt > DateTime.UtcNow)
+                .Include(t => t.Appointment)
+                .FirstOrDefaultAsync();
+
             if (cancelRequest == null)
-            {
                 return Results.NotFound(new ApiResponse<object>(false, "Cancel token not found or expired", null));
-            }
-            
-            var booking = cancelRequest.Booking;
+
+            var appointment = cancelRequest.Appointment;
             int cutoffHours = 2;
-            
-            // Check if booking has an appointment (confirmed)
-            if (booking.Appointment != null)
+
+            if (appointment.Status is AppointmentStatus.Cancelled or AppointmentStatus.NoShow)
+                return Results.Conflict(new ApiResponse<object>(false, "Appointment is already cancelled", null));
+
+            if (appointment.StartAt < DateTime.UtcNow.AddHours(cutoffHours))
+                return Results.Conflict(new ApiResponse<object>(false, "Cannot cancel appointment within 2 hours of start time", null));
+
+            appointment.Status = AppointmentStatus.Cancelled;
+            appointment.UpdatedAt = DateTime.UtcNow;
+            cancelRequest.ExpiresAt = DateTime.UtcNow; // Invalidate token after use
+
+            await _context.SaveChangesAsync();
+
+            return Results.Ok(new ApiResponse<object>(true, "Appointment cancelled successfully", new
             {
-                var appointment = booking.Appointment;
-                
-                if (appointment.Status is AppointmentStatus.Cancelled or AppointmentStatus.NoShow)
-                    return Results.Conflict(new ApiResponse<object>(false, "Appointment is already cancelled", null));
-                
-                if (appointment.StartAt < DateTime.UtcNow.AddHours(cutoffHours))
-                    return Results.Conflict(new ApiResponse<object>(false, "Cannot cancel appointment within 2 hours of start time", null));
-                
-                await using var transaction = await _context.Database.BeginTransactionAsync();
-                
-                appointment.Status = AppointmentStatus.Cancelled;
-                appointment.UpdatedAt = DateTime.UtcNow;
-                booking.Status = BookingStatus.Cancelled;
-                booking.UpdatedAt = DateTime.UtcNow;
-                cancelRequest.ExpiresAt = DateTime.UtcNow;
-                
-                await _context.SaveChangesAsync();
-                await transaction.CommitAsync();
-                
-                return Results.Ok(new ApiResponse<object>(true, "Appointment cancelled successfully", new
-                {
-                    bookingId = booking.BookingId,
-                    appointmentId = appointment.AppointmentId,
-                    status = "cancelled"
-                }));
-            }
-            else
-            {
-                // Booking not yet confirmed - just cancel the booking
-                if (booking.Status == BookingStatus.Cancelled)
-                    return Results.Conflict(new ApiResponse<object>(false, "Booking is already cancelled", null));
-                
-                if (booking.StartAt < DateTime.UtcNow.AddHours(cutoffHours))
-                    return Results.Conflict(new ApiResponse<object>(false, "Cannot cancel booking within 2 hours of start time", null));
-                
-                booking.Status = BookingStatus.Cancelled;
-                booking.UpdatedAt = DateTime.UtcNow;
-                cancelRequest.ExpiresAt = DateTime.UtcNow;
-                
-                await _context.SaveChangesAsync();
-                
-                return Results.Ok(new ApiResponse<object>(true, "Booking cancelled successfully", new
-                {
-                    bookingId = booking.BookingId,
-                    status = "cancelled"
-                }));
-            }
+                appointmentId = appointment.AppointmentId,
+                status = "cancelled"
+            }));
         }
 
 
@@ -560,68 +438,24 @@ namespace ClinicManagement_API.Features.booking_service.service
 
         public async Task<IResult> UpdateAppointmentStatusAsync(Guid id, UpdateAppointmentStatusRequest request)
         {
-            var booking = await _context.Bookings
-                .Include(b => b.Appointment)
-                .FirstOrDefaultAsync(b => b.BookingId == id);
+            var appointment = await _context.Appointments
+                .FirstOrDefaultAsync(a => a.AppointmentId == id);
 
-            if (booking == null)
-            {
-                return Results.NotFound(new ApiResponse<object>(false, "Booking not found", null));
-            }
+            if (appointment == null)
+                return Results.NotFound(new ApiResponse<object>(false, "Appointment not found", null));
 
             // Parse the status
-            if (!Enum.TryParse<BookingStatus>(request.Status, true, out var newStatus))
-            {
-                return Results.BadRequest(new ApiResponse<object>(false, "Invalid status. Use: confirmed or cancelled", null));
-            }
+            if (!Enum.TryParse<AppointmentStatus>(request.Status, true, out var newStatus))
+                return Results.BadRequest(new ApiResponse<object>(false, "Invalid status", null));
 
-            // Validate status transitions
-            if (newStatus != BookingStatus.Confirmed && newStatus != BookingStatus.Cancelled)
-            {
-                return Results.BadRequest(new ApiResponse<object>(false, "Only 'confirmed' or 'cancelled' status is allowed", null));
-            }
+            if (appointment.Status == newStatus)
+                return Results.BadRequest(new ApiResponse<object>(false, $"Appointment is already {newStatus.ToString().ToLower()}", null));
 
-            if (booking.Status == newStatus)
-            {
-                return Results.BadRequest(new ApiResponse<object>(false, $"Booking is already {newStatus.ToString().ToLower()}", null));
-            }
-
-            booking.Status = newStatus;
-            booking.UpdatedAt = DateTime.UtcNow;
-
-            // If confirming, create appointment if not exists
-            if (newStatus == BookingStatus.Confirmed && booking.Appointment == null)
-            {
-                var appointment = new Appointment
-                {
-                    AppointmentId = Guid.NewGuid(),
-                    ClinicId = booking.ClinicId,
-                    DoctorId = booking.DoctorId ?? throw new InvalidOperationException("Booking missing doctor"),
-                    ServiceId = booking.ServiceId,
-                    StartAt = booking.StartAt,
-                    EndAt = booking.EndAt,
-                    Source = booking.Channel,
-                    ContactFullName = booking.FullName,
-                    ContactPhone = booking.Phone,
-                    ContactEmail = booking.Email,
-                    Status = AppointmentStatus.Confirmed,
-                    BookingId = booking.BookingId,
-                    CreatedAt = DateTime.UtcNow,
-                    UpdatedAt = DateTime.UtcNow
-                };
-                booking.Appointment = appointment;
-                _context.Appointments.Add(appointment);
-            }
-
-            // If cancelling, cancel appointment too
-            if (newStatus == BookingStatus.Cancelled && booking.Appointment != null)
-            {
-                booking.Appointment.Status = AppointmentStatus.Cancelled;
-                booking.Appointment.UpdatedAt = DateTime.UtcNow;
-            }
+            appointment.Status = newStatus;
+            appointment.UpdatedAt = DateTime.UtcNow;
 
             await _context.SaveChangesAsync();
-            return Results.Ok(new ApiResponse<object>(true, $"Status updated to {newStatus.ToString().ToLower()}", 
+            return Results.Ok(new ApiResponse<object>(true, $"Status updated to {newStatus.ToString().ToLower()}",
                 new { appointment_id = id, new_status = newStatus.ToString().ToLower() }));
         }
 
@@ -629,7 +463,7 @@ namespace ClinicManagement_API.Features.booking_service.service
         {
             // Get available slots using existing logic
             var slotsResult = await GetSlotsAsync(clinicId, doctorId, null, date);
-            
+
             // Extract slots from the result
             if (slotsResult is Microsoft.AspNetCore.Http.HttpResults.Ok<ApiResponse<IEnumerable<SlotDto>>> okResult)
             {
@@ -640,7 +474,7 @@ namespace ClinicManagement_API.Features.booking_service.service
                     return Results.Ok(new ApiResponse<List<string>>(true, "OK", timeSlots));
                 }
             }
-            
+
             return Results.Ok(new ApiResponse<List<string>>(true, "OK", new List<string>()));
         }
     }

@@ -25,11 +25,11 @@ public static class UserHandler
     public static Task<IResult> CreateBooking(IUserService svc, CreateBookingRequest req)
         => svc.CreateBookingAsync(req);
 
-    public static Task<IResult> GetBooking(IUserService svc, Guid bookingId)
-        => svc.GetBookingAsync(bookingId);
+    public static Task<IResult> GetAppointment(IUserService svc, Guid appointmentId)
+        => svc.GetAppointmentAsync(appointmentId);
 
-    public static Task<IResult> ConfirmBooking(IUserService svc, Guid bookingId)
-        => svc.ConfirmBookingAsync(bookingId);
+    public static Task<IResult> ConfirmAppointment(IUserService svc, Guid appointmentId)
+        => svc.ConfirmAppointmentAsync(appointmentId);
     public static Task<IResult> CancelBooking(IUserService svc, string token)
         => svc.CancelAppointmentAsync(token);
     public static Task<IResult> Rescheduling(IUserService svc, string token, DateTime start, DateTime end)
