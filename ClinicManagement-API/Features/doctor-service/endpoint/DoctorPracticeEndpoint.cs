@@ -26,5 +26,12 @@ public static class DoctorPracticeEndpoint
         doctor.MapGet("/medical-records/{recordId:guid}", DoctorPracticeHandler.GetMedicalRecordDetail);
         doctor.MapPost("/medical-records", DoctorPracticeHandler.CreateMedicalRecord);
         doctor.MapPut("/medical-records/{recordId:guid}", DoctorPracticeHandler.UpdateMedicalRecord);
+
+        // Prescription Templates
+        doctor.MapGet("/prescription-templates", DoctorPracticeHandler.GetPrescriptionTemplates);
+        doctor.MapPost("/prescription-templates", DoctorPracticeHandler.CreatePrescriptionTemplate);
+
+        // Examinations
+        doctor.MapPost("/examinations", DoctorPracticeHandler.CreateExamination);
     }
 }

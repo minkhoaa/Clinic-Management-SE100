@@ -5,6 +5,7 @@ using ClinicManagement_API.Features.doctor_service.dto;
 using ClinicManagement_API.Infrastructure.Persisstence;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
+using System.Text.Json;
 
 namespace ClinicManagement_API.Features.doctor_service.service;
 
@@ -19,6 +20,9 @@ public interface IDoctorPracticeService
     Task<IResult> GetMedicalRecordDetailAsync(Guid recordId);
     Task<IResult> CreateMedicalRecordAsync(ClaimsPrincipal user, CreateMedicalRecordRequest request);
     Task<IResult> UpdateMedicalRecordAsync(ClaimsPrincipal user, Guid recordId, UpdateMedicalRecordRequest request);
+    Task<IResult> GetPrescriptionTemplatesAsync(ClaimsPrincipal user);
+    Task<IResult> CreatePrescriptionTemplateAsync(ClaimsPrincipal user, CreatePrescriptionTemplateRequest request);
+    Task<IResult> CreateExaminationAsync(ClaimsPrincipal user, CreateExaminationRequest request);
 }
 
 public class DoctorPracticeService : IDoctorPracticeService
@@ -283,12 +287,14 @@ public class DoctorPracticeService : IDoctorPracticeService
 
         // Calculate stats
         var lastVisit = await _context.Appointments
+            .AsNoTracking()
             .Where(a => a.PatientId == patientId && a.Status == AppointmentStatus.Completed)
             .OrderByDescending(a => a.StartAt)
             .Select(a => a.StartAt)
             .FirstOrDefaultAsync();
 
         var totalVisits = await _context.Appointments
+            .AsNoTracking()
             .CountAsync(a => a.PatientId == patientId && a.Status == AppointmentStatus.Completed);
 
         var result = new DoctorPatientDetailDto(
@@ -497,5 +503,193 @@ public class DoctorPracticeService : IDoctorPracticeService
 
         return Results.Ok(new ApiResponse<UpdateMedicalRecordResponse>(true, "Medical record updated",
             new UpdateMedicalRecordResponse(record.RecordId, record.UpdatedAt)));
+    }
+
+    public async Task<IResult> GetPrescriptionTemplatesAsync(ClaimsPrincipal user)
+    {
+        var doctorId = await GetDoctorIdFromUser(user);
+        if (doctorId == null)
+            return Results.Unauthorized();
+
+        var doctor = await _context.Doctors.FindAsync(doctorId.Value);
+        if (doctor == null)
+            return Results.NotFound(new ApiResponse<object>(false, "Doctor not found", null));
+
+        // Get templates for this clinic (shared + doctor's own)
+        var templates = await _context.PrescriptionTemplates
+            .AsNoTracking()
+            .Where(t => t.ClinicId == doctor.ClinicId)
+            .Where(t => t.DoctorId == null || t.DoctorId == doctorId.Value)
+            .OrderBy(t => t.Name)
+            .ToListAsync();
+
+        var result = templates.Select(t => new PrescriptionTemplateDto(
+            t.TemplateId,
+            t.Name,
+            t.Category,
+            DeserializeMedicines(t.Medicines),
+            t.Notes
+        )).ToList();
+
+        return Results.Ok(new ApiResponse<List<PrescriptionTemplateDto>>(true, "Templates retrieved", result));
+    }
+
+    public async Task<IResult> CreatePrescriptionTemplateAsync(ClaimsPrincipal user,
+        CreatePrescriptionTemplateRequest request)
+    {
+        var doctorId = await GetDoctorIdFromUser(user);
+        if (doctorId == null)
+            return Results.Unauthorized();
+
+        var doctor = await _context.Doctors.FindAsync(doctorId.Value);
+        if (doctor == null)
+            return Results.NotFound(new ApiResponse<object>(false, "Doctor not found", null));
+
+        var template = new PrescriptionTemplate
+        {
+            TemplateId = Guid.NewGuid(),
+            ClinicId = doctor.ClinicId,
+            DoctorId = doctorId.Value,
+            Name = request.Name,
+            Category = request.Category,
+            Medicines = SerializeMedicines(request.Medicines),
+            Notes = request.Notes,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+
+        _context.PrescriptionTemplates.Add(template);
+        await _context.SaveChangesAsync();
+
+        return Results.Created($"/api/doctor/prescription-templates/{template.TemplateId}",
+            new ApiResponse<CreatePrescriptionTemplateResponse>(true, "Template created",
+                new CreatePrescriptionTemplateResponse(template.TemplateId, template.CreatedAt)));
+    }
+
+    private static string SerializeMedicines(List<MedicineDto> medicines)
+    {
+        return JsonSerializer.Serialize(medicines);
+    }
+
+    private static List<MedicineDto> DeserializeMedicines(string json)
+    {
+        try
+        {
+            return JsonSerializer.Deserialize<List<MedicineDto>>(json) ?? new List<MedicineDto>();
+        }
+        catch
+        {
+            return new List<MedicineDto>();
+        }
+    }
+
+    public async Task<IResult> CreateExaminationAsync(ClaimsPrincipal user, CreateExaminationRequest request)
+    {
+        var doctorId = await GetDoctorIdFromUser(user);
+        if (doctorId == null)
+            return Results.Unauthorized();
+
+        // Validate patient exists
+        var patient = await _context.Patients.FindAsync(request.PatientId);
+        if (patient == null)
+            return Results.NotFound(new ApiResponse<object>(false, "Patient not found", null));
+
+        // Get doctor info
+        var doctor = await _context.Doctors.FindAsync(doctorId.Value);
+        if (doctor == null)
+            return Results.NotFound(new ApiResponse<object>(false, "Doctor not found", null));
+
+        // Prepare prescription JSON
+        string? prescriptionJson = null;
+        if (request.Prescription != null)
+        {
+            prescriptionJson = JsonSerializer.Serialize(request.Prescription);
+        }
+
+        // Prepare notes with ToothStatus if present
+        string? notes = request.Notes;
+        if (request.ToothStatus != null && request.ToothStatus.Count > 0)
+        {
+            var toothStatusJson = JsonSerializer.Serialize(request.ToothStatus);
+            notes = $"{request.Notes ?? ""}\n[ToothStatus]: {toothStatusJson}".Trim();
+        }
+
+        // Create MedicalRecord
+        var record = new MedicalRecord
+        {
+            RecordId = Guid.NewGuid(),
+            PatientId = request.PatientId,
+            ClinicId = doctor.ClinicId,
+            DoctorId = doctorId.Value,
+            AppointmentId = request.AppointmentId,
+            Title = request.Title,
+            RecordDate = DateTime.UtcNow,
+            Diagnosis = request.Diagnosis,
+            Treatment = request.Treatment,
+            Prescription = prescriptionJson,
+            Notes = notes,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+
+        _context.MedicalRecords.Add(record);
+
+        Guid? billId = null;
+
+        // Create Bill if requested
+        if (request is { CreateBill: true, ServiceIds.Count: > 0 })
+        {
+            // Get services and calculate total
+            var services = await _context.Services
+                .AsNoTracking()
+                .Where(s => request.ServiceIds.Contains(s.ServiceId))
+                .ToListAsync();
+
+            var subtotal = services.Sum(s => s.DefaultPrice ?? 0);
+
+            // Generate invoice number
+            var billCount = await _context.Bills.AsNoTracking().CountAsync(b => b.ClinicId == doctor.ClinicId);
+            var invoiceNumber = $"HD-{DateTime.UtcNow:yyyy}-{(billCount + 1):D4}";
+
+            var bill = new Bill
+            {
+                BillId = Guid.NewGuid(),
+                ClinicId = doctor.ClinicId,
+                PatientId = request.PatientId,
+                AppointmentId = request.AppointmentId,
+                MedicalRecordId = record.RecordId,
+                InvoiceNumber = invoiceNumber,
+                Status = BillStatus.Pending,
+                Subtotal = subtotal,
+                Discount = 0,
+                TotalAmount = subtotal,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            };
+
+            _context.Bills.Add(bill);
+
+            // Create BillItems
+            var billItems = services.Select(k => new BillItem()
+            {
+                BillItemId = Guid.NewGuid(),
+                BillId = bill.BillId,
+                ServiceId = k.ServiceId,
+                Name = k.Name,
+                Quantity = 1,
+                UnitPrice = k.DefaultPrice ?? 0,
+                Amount = k.DefaultPrice ?? 0
+            });
+
+            _context.BillItems.AddRange(billItems);
+
+            billId = bill.BillId;
+        }
+
+        await _context.SaveChangesAsync();
+
+        return Results.Created($"/api/doctor/medical-records/{record.RecordId}",
+            new ApiResponse<CreateExaminationResponse>(true, "Examination created",
+                new CreateExaminationResponse(record.RecordId, billId, record.CreatedAt)));
     }
 }

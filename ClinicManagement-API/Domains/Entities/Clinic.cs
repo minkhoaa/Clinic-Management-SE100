@@ -11,6 +11,7 @@ public sealed class Clinic
     [Key]
     [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
     public Guid ClinicId { get; set; }
+
     public string Code { get; set; } = default!;
     public string Name { get; set; } = default!;
     public string TimeZone { get; set; } = "Asia/Ho_Chi_Minh";
@@ -26,5 +27,6 @@ public sealed class Clinic
     public ICollection<StaffUser> StaffUsers { get; set; } = new List<StaffUser>();
     public ICollection<Patients> Patients { get; set; } = new List<Patients>();
     public ICollection<DoctorTimeOff> DoctorTimeOffs { get; set; } = new List<DoctorTimeOff>();
-    public IEnumerable<Bill>? Bills { get; set; }
+    public ICollection<Bill>? Bills { get; set; }
+    public ICollection<PrescriptionTemplate> PrescriptionTemplates { get; set; } = new List<PrescriptionTemplate>();
 }

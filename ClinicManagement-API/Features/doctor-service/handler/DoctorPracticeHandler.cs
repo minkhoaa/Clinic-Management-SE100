@@ -37,4 +37,15 @@ public static class DoctorPracticeHandler
     public static async Task<IResult> UpdateMedicalRecord(IDoctorPracticeService service, ClaimsPrincipal user,
         Guid recordId, UpdateMedicalRecordRequest request)
         => await service.UpdateMedicalRecordAsync(user, recordId, request);
+
+    public static async Task<IResult> GetPrescriptionTemplates(IDoctorPracticeService service, ClaimsPrincipal user)
+        => await service.GetPrescriptionTemplatesAsync(user);
+
+    public static async Task<IResult> CreatePrescriptionTemplate(IDoctorPracticeService service, ClaimsPrincipal user,
+        CreatePrescriptionTemplateRequest request)
+        => await service.CreatePrescriptionTemplateAsync(user, request);
+
+    public static async Task<IResult> CreateExamination(IDoctorPracticeService service, ClaimsPrincipal user,
+        CreateExaminationRequest request)
+        => await service.CreateExaminationAsync(user, request);
 }

@@ -33,6 +33,9 @@ public class ClinicDbContext : IdentityDbContext<User, Role, Guid>
     public DbSet<DoctorTimeOff> DoctorTimeOffs => Set<DoctorTimeOff>();
     public DbSet<MedicalRecord> MedicalRecords => Set<MedicalRecord>();
     public DbSet<MedicalRecordAttachment> MedicalRecordAttachments => Set<MedicalRecordAttachment>();
+    public DbSet<PrescriptionTemplate> PrescriptionTemplates => Set<PrescriptionTemplate>();
+    public DbSet<Bill> Bills => Set<Bill>();
+    public DbSet<BillItem> BillItems => Set<BillItem>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -290,6 +293,23 @@ public class ClinicDbContext : IdentityDbContext<User, Role, Guid>
                 .WithMany(k => k.BillItems)
                 .HasForeignKey(x => x.ServiceId)
                 .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<PrescriptionTemplate>(e =>
+        {
+            e.ToTable("PrescriptionTemplates");
+            e.HasKey(x => x.TemplateId);
+            e.Property(x => x.Name).HasMaxLength(200).IsRequired();
+            e.Property(x => x.Category).HasMaxLength(50);
+            e.Property(x => x.Medicines).IsRequired();
+            e.HasOne(x => x.Clinic)
+                .WithMany(c => c.PrescriptionTemplates)
+                .HasForeignKey(x => x.ClinicId)
+                .OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(x => x.Doctor)
+                .WithMany(d => d.PrescriptionTemplates)
+                .HasForeignKey(x => x.DoctorId)
+                .OnDelete(DeleteBehavior.SetNull);
         });
     }
 }
