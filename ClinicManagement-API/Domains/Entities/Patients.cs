@@ -36,5 +36,6 @@ public sealed class Patients
 
     public Clinic Clinic { get; set; } = default!;
     public ICollection<Appointment>? Appointments { get; set; }
+    public IEnumerable<Bill>? Bills { get; set; }
 }
 

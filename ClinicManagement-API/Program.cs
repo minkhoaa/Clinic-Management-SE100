@@ -9,6 +9,7 @@ using ClinicManagement_API.Infrastructure.Persisstence;
 using ClinicManagement_API.Features.booking_service.endpoint;
 using ClinicManagement_API.Features.receptionist_service.endpoint;
 using ClinicManagement_API.Features.receptionist_service.service;
+using ClinicManagement_API.Features.billing_service.service;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -19,13 +20,12 @@ using Microsoft.OpenApi.Models;
 var builder = WebApplication.CreateBuilder(args);
 
 
-
 var connectionString = Environment.GetEnvironmentVariable("CONNECTIONSTRING__CLINIC")
-                    ?? builder.Configuration.GetConnectionString("Clinic_DB")
-                    ?? throw new Exception("connectionString is missing");
+                       ?? builder.Configuration.GetConnectionString("Clinic_DB")
+                       ?? throw new Exception("connectionString is missing");
 builder.Services.Configure<JwtSettings>(builder.Configuration.GetSection("JwtSettings"));
 var jwtSettings = builder.Configuration.GetSection("JwtSettings").Get<JwtSettings>()
-    ?? throw new Exception("Missing valid jwt settings");
+                  ?? throw new Exception("Missing valid jwt settings");
 builder.Services.AddDbContext<ClinicDbContext>(option => option.UseNpgsql(connectionString));
 builder.Services.AddIdentity<User, Role>(options =>
     {
@@ -56,8 +56,8 @@ builder.Services.AddAuthentication(options =>
     });
 builder.Services.AddAuthorization();
 builder.Services.AddCors(option => option.AddPolicy("FE",
-policy => policy.WithOrigins("http://localhost:3000", "http://localhost:3001")
-    .AllowAnyHeader().AllowAnyMethod().AllowCredentials()));
+    policy => policy.WithOrigins("http://localhost:3000", "http://localhost:3001")
+        .AllowAnyHeader().AllowAnyMethod().AllowCredentials()));
 
 
 // DI
@@ -69,6 +69,7 @@ builder.Services.AddScoped<IServiceService, ServiceService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IPatientService, PatientService>();
 builder.Services.AddScoped<IReceptionistService, ReceptionistService>();
+builder.Services.AddScoped<IBillingService, BillingService>();
 builder.Services.AddTransient<JwtGenerator>();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>
@@ -106,7 +107,6 @@ builder.Services.AddSwaggerGen(options =>
 });
 
 
-
 var app = builder.Build();
 app.UseCors("FE");
 
@@ -130,6 +130,7 @@ using (var scope = app.Services.CreateScope())
     var db = scope.ServiceProvider.GetRequiredService<ClinicDbContext>();
     await db.Database.MigrateAsync();
 }
+
 app.UseAuthentication();
 app.UseAuthorization();
 

@@ -18,7 +18,7 @@ public interface IReceptionistService
     Task<IResult> ConfirmAppointmentAsync(Guid id);
     Task<IResult> CancelAppointmentAsync(Guid id, string? reason);
     Task<IResult> CheckinAppointmentAsync(Guid id);
-    
+
     // Queue APIs
     Task<IResult> GetQueueAsync(string? date, string? search, Guid? clinicId);
     Task<IResult> CallPatientAsync(Guid id);
@@ -82,7 +82,6 @@ public class ReceptionistService : IReceptionistService
         var query = _context.Appointments
             .Include(a => a.Doctor)
             .Include(a => a.Service)
-            
             .AsNoTracking()
             .Where(a => a.StartAt >= today && a.StartAt < tomorrow);
 
@@ -100,18 +99,20 @@ public class ReceptionistService : IReceptionistService
                 a.ContactPhone,
                 a.Service != null ? a.Service.Name : "Khám tổng quát",
                 a.Doctor.FullName,
-                a.StartAt.ToString("yyyy-MM-dd"),
-                a.StartAt.ToString("HH:mm"),
+                a.StartAt,
+                a.EndAt,
                 (int)(a.EndAt - a.StartAt).TotalMinutes,
                 MapStatus(a.Status),
                 a.Notes
             ))
             .ToListAsync();
 
-        return Results.Ok(new ApiResponse<List<TodayAppointmentDto>>(true, "Today's appointments retrieved", appointments));
+        return Results.Ok(
+            new ApiResponse<List<TodayAppointmentDto>>(true, "Today's appointments retrieved", appointments));
     }
 
-    public async Task<IResult> GetAppointmentsAsync(string date, string? doctor, string? status, string? search, Guid? clinicId)
+    public async Task<IResult> GetAppointmentsAsync(string date, string? doctor, string? status, string? search,
+        Guid? clinicId)
     {
         if (!DateOnly.TryParse(date, out var targetDate))
         {
@@ -124,7 +125,6 @@ public class ReceptionistService : IReceptionistService
         var query = _context.Appointments
             .Include(a => a.Doctor)
             .Include(a => a.Service)
-            
             .AsNoTracking()
             .Where(a => a.StartAt >= startOfDay && a.StartAt <= endOfDay);
 
@@ -172,8 +172,8 @@ public class ReceptionistService : IReceptionistService
                 a.ContactPhone,
                 a.Service != null ? a.Service.Name : "Khám tổng quát",
                 a.Doctor.FullName,
-                a.StartAt.ToString("yyyy-MM-dd"),
-                a.StartAt.ToString("HH:mm"),
+                a.StartAt,
+                a.EndAt,
                 (int)(a.EndAt - a.StartAt).TotalMinutes,
                 MapStatus(a.Status),
                 a.Notes
@@ -206,41 +206,38 @@ public class ReceptionistService : IReceptionistService
             return Results.BadRequest(new ApiResponse<object>(false, "Service not found", null));
         }
 
-        // Parse date and time
-        if (!DateOnly.TryParse(request.Date, out var date) || !TimeOnly.TryParse(request.Time, out var time))
-        {
-            return Results.BadRequest(new ApiResponse<object>(false, "Invalid date or time format", null));
-        }
-
-        var startAt = date.ToDateTime(time, DateTimeKind.Utc);
-        var duration = request.Duration > 0 ? request.Duration : 30;
-        var endAt = startAt.AddMinutes(duration);
+        // Use DateTime directly from request
+        var startAt = DateTime.SpecifyKind(request.StartAt, DateTimeKind.Utc);
+        var endAt = DateTime.SpecifyKind(request.EndAt, DateTimeKind.Utc);
 
         var doctorSupportServices = await _context.DoctorServices.AsNoTracking()
-                                    .AnyAsync(k => k.DoctorId == request.DoctorId && k.ServiceId == request.ServiceId);
+            .AnyAsync(k => k.DoctorId == request.DoctorId && k.ServiceId == request.ServiceId);
         if (!doctorSupportServices)
             return Results.BadRequest(new ApiResponse<object>(false, "Doctor does not offer this service", null));
         // kiểm tra lặp, kiểm tra lịch đặt có chồng chéo lên lịch nghỉ của bác sĩ khong  
         var isDoctorInTimeoff = await _context.DoctorTimeOffs.AsNoTracking()
-                                .AnyAsync(k => k.DoctorId == request.DoctorId && startAt < k.EndAt && k.StartAt < endAt);
+            .AnyAsync(k => k.DoctorId == request.DoctorId && startAt < k.EndAt && k.StartAt < endAt);
         if (isDoctorInTimeoff)
         {
-            return Results.Conflict(new ApiResponse<object>(false, "Doctor is on time off during the selected period", null));
+            return Results.Conflict(new ApiResponse<object>(false, "Doctor is on time off during the selected period",
+                null));
         }
+
         // Check doctor availability
         var avail = await _context.DoctorAvailabilities
             .Where(x => x.DoctorId == request.DoctorId && x.ClinicId == request.ClinicId
-                && x.IsActive && x.DayOfWeek == (byte)date.DayOfWeek)
+                                                       && x.IsActive && x.DayOfWeek == (byte)startAt.DayOfWeek)
             .ToListAsync();
 
         var inAvail = avail.Any(x =>
             (!x.EffectiveFrom.HasValue || x.EffectiveFrom.Value.Date <= startAt.Date) &&
             (!x.EffectiveTo.HasValue || x.EffectiveTo.Value.Date >= startAt.Date) &&
-            time.ToTimeSpan() >= x.StartTime && endAt.TimeOfDay <= x.EndTime);
+            startAt.TimeOfDay >= x.StartTime && endAt.TimeOfDay <= x.EndTime);
 
         if (!inAvail)
         {
-            return Results.UnprocessableEntity(new ApiResponse<object>(false, "Selected time is outside doctor's availability", null));
+            return Results.UnprocessableEntity(new ApiResponse<object>(false,
+                "Selected time is outside doctor's availability", null));
         }
 
         // Check for conflicts
@@ -275,7 +272,8 @@ public class ReceptionistService : IReceptionistService
         _context.Appointments.Add(appointment);
         await _context.SaveChangesAsync();
 
-        return Results.Ok(new ApiResponse<ActionResultDto>(true, "Appointment created", new ActionResultDto(true, appointment.AppointmentId)));
+        return Results.Ok(new ApiResponse<ActionResultDto>(true, "Appointment created",
+            new ActionResultDto(true, appointment.AppointmentId)));
     }
 
     public async Task<IResult> UpdateAppointmentAsync(Guid id, UpdateAppointmentRequest request)
@@ -300,15 +298,9 @@ public class ReceptionistService : IReceptionistService
             return Results.BadRequest(new ApiResponse<object>(false, "Service not found", null));
         }
 
-        // Parse date and time
-        if (!DateOnly.TryParse(request.Date, out var date) || !TimeOnly.TryParse(request.Time, out var time))
-        {
-            return Results.BadRequest(new ApiResponse<object>(false, "Invalid date or time format", null));
-        }
-
-        var startAt = date.ToDateTime(time, DateTimeKind.Utc);
-        var duration = request.Duration > 0 ? request.Duration : 30;
-        var endAt = startAt.AddMinutes(duration);
+        // Use DateTime directly from request
+        var startAt = DateTime.SpecifyKind(request.StartAt, DateTimeKind.Utc);
+        var endAt = DateTime.SpecifyKind(request.EndAt, DateTimeKind.Utc);
 
         // Check doctor supports this service
         var doctorSupportServices = await _context.DoctorServices.AsNoTracking()
@@ -323,23 +315,25 @@ public class ReceptionistService : IReceptionistService
             .AnyAsync(k => k.DoctorId == request.DoctorId && startAt < k.EndAt && k.StartAt < endAt);
         if (isDoctorInTimeoff)
         {
-            return Results.Conflict(new ApiResponse<object>(false, "Doctor is on time off during the selected period", null));
+            return Results.Conflict(new ApiResponse<object>(false, "Doctor is on time off during the selected period",
+                null));
         }
 
         // Check doctor availability
         var avail = await _context.DoctorAvailabilities
             .Where(x => x.DoctorId == request.DoctorId && x.ClinicId == appointment.ClinicId
-                && x.IsActive && x.DayOfWeek == (byte)date.DayOfWeek)
+                                                       && x.IsActive && x.DayOfWeek == (byte)startAt.DayOfWeek)
             .ToListAsync();
 
         var inAvail = avail.Any(x =>
             (!x.EffectiveFrom.HasValue || x.EffectiveFrom.Value.Date <= startAt.Date) &&
             (!x.EffectiveTo.HasValue || x.EffectiveTo.Value.Date >= startAt.Date) &&
-            time.ToTimeSpan() >= x.StartTime && endAt.TimeOfDay <= x.EndTime);
+            startAt.TimeOfDay >= x.StartTime && endAt.TimeOfDay <= x.EndTime);
 
         if (!inAvail)
         {
-            return Results.UnprocessableEntity(new ApiResponse<object>(false, "Selected time is outside doctor's availability", null));
+            return Results.UnprocessableEntity(new ApiResponse<object>(false,
+                "Selected time is outside doctor's availability", null));
         }
 
         // Check for conflicts in Appointments (excluding current appointment)
@@ -366,7 +360,8 @@ public class ReceptionistService : IReceptionistService
 
         await _context.SaveChangesAsync();
 
-        return Results.Ok(new ApiResponse<ActionResultDto>(true, "Appointment updated", new ActionResultDto(true, appointment.AppointmentId)));
+        return Results.Ok(new ApiResponse<ActionResultDto>(true, "Appointment updated",
+            new ActionResultDto(true, appointment.AppointmentId)));
     }
 
     public async Task<IResult> ConfirmAppointmentAsync(Guid id)
@@ -379,7 +374,8 @@ public class ReceptionistService : IReceptionistService
 
         if (appointment.Status == AppointmentStatus.Confirmed)
         {
-            return Results.Ok(new ApiResponse<ActionResultDto>(true, "Appointment already confirmed", new ActionResultDto(true, appointment.AppointmentId)));
+            return Results.Ok(new ApiResponse<ActionResultDto>(true, "Appointment already confirmed",
+                new ActionResultDto(true, appointment.AppointmentId)));
         }
 
         if (appointment.Status == AppointmentStatus.Cancelled)
@@ -391,7 +387,8 @@ public class ReceptionistService : IReceptionistService
         appointment.UpdatedAt = DateTime.UtcNow;
         await _context.SaveChangesAsync();
 
-        return Results.Ok(new ApiResponse<ActionResultDto>(true, "Appointment confirmed", new ActionResultDto(true, appointment.AppointmentId)));
+        return Results.Ok(new ApiResponse<ActionResultDto>(true, "Appointment confirmed",
+            new ActionResultDto(true, appointment.AppointmentId)));
     }
 
     public async Task<IResult> CancelAppointmentAsync(Guid id, string? reason)
@@ -404,14 +401,16 @@ public class ReceptionistService : IReceptionistService
 
         if (appointment.Status == AppointmentStatus.Cancelled)
         {
-            return Results.Ok(new ApiResponse<ActionResultDto>(true, "Appointment already cancelled", new ActionResultDto(true, appointment.AppointmentId)));
+            return Results.Ok(new ApiResponse<ActionResultDto>(true, "Appointment already cancelled",
+                new ActionResultDto(true, appointment.AppointmentId)));
         }
 
         appointment.Status = AppointmentStatus.Cancelled;
         appointment.UpdatedAt = DateTime.UtcNow;
         await _context.SaveChangesAsync();
 
-        return Results.Ok(new ApiResponse<ActionResultDto>(true, "Appointment cancelled", new ActionResultDto(true, appointment.AppointmentId)));
+        return Results.Ok(new ApiResponse<ActionResultDto>(true, "Appointment cancelled",
+            new ActionResultDto(true, appointment.AppointmentId)));
     }
 
     public async Task<IResult> CheckinAppointmentAsync(Guid id)
@@ -429,14 +428,16 @@ public class ReceptionistService : IReceptionistService
 
         if (appointment.Status == AppointmentStatus.CheckedIn)
         {
-            return Results.Ok(new ApiResponse<ActionResultDto>(true, "Patient already checked in", new ActionResultDto(true, appointment.AppointmentId)));
+            return Results.Ok(new ApiResponse<ActionResultDto>(true, "Patient already checked in",
+                new ActionResultDto(true, appointment.AppointmentId)));
         }
 
         appointment.Status = AppointmentStatus.CheckedIn;
         appointment.UpdatedAt = DateTime.UtcNow;
         await _context.SaveChangesAsync();
 
-        return Results.Ok(new ApiResponse<ActionResultDto>(true, "Patient checked in", new ActionResultDto(true, appointment.AppointmentId)));
+        return Results.Ok(new ApiResponse<ActionResultDto>(true, "Patient checked in",
+            new ActionResultDto(true, appointment.AppointmentId)));
     }
 
     private static string MapStatus(AppointmentStatus status) => status switch
@@ -499,7 +500,8 @@ public class ReceptionistService : IReceptionistService
         if (!string.IsNullOrWhiteSpace(search))
         {
             var searchLower = search.ToLower();
-            query = query.Where(a => a.ContactFullName.ToLower().Contains(searchLower) ||  a.ContactPhone.Contains(search));
+            query = query.Where(a =>
+                a.ContactFullName.ToLower().Contains(searchLower) || a.ContactPhone.Contains(search));
         }
 
         var appointments = await query
@@ -520,7 +522,7 @@ public class ReceptionistService : IReceptionistService
             index + 1,
             a.ContactFullName,
             a.ServiceName,
-            a.StartAt.ToString("HH:mm"),
+            a.StartAt,
             MapQueueStatus(a.Status)
         )).ToList();
 
@@ -550,7 +552,8 @@ public class ReceptionistService : IReceptionistService
             return Results.NotFound(new ApiResponse<object>(false, "Appointment not found", null));
 
         if (appointment.Status != AppointmentStatus.InProgress)
-            return Results.BadRequest(new ApiResponse<object>(false, "Appointment must be in-progress to complete", null));
+            return Results.BadRequest(new ApiResponse<object>(false, "Appointment must be in-progress to complete",
+                null));
 
         appointment.Status = AppointmentStatus.Completed;
         appointment.UpdatedAt = DateTime.UtcNow;

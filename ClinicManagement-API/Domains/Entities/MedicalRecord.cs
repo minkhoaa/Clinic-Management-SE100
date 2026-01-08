@@ -31,4 +31,5 @@ public sealed class MedicalRecord
     public Doctor Doctor { get; set; } = default!;
     public Appointment? Appointment { get; set; }
     public ICollection<MedicalRecordAttachment> Attachments { get; set; } = new List<MedicalRecordAttachment>();
+    public IEnumerable<Bill>? Bills { get; set; }
 }

@@ -6,9 +6,13 @@ using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 
 namespace ClinicManagement_API.Infrastructure.Persisstence;
 
-public class User : IdentityUser<Guid> { }
-public class Role : IdentityRole<Guid> { }
+public class User : IdentityUser<Guid>
+{
+}
 
+public class Role : IdentityRole<Guid>
+{
+}
 
 public class ClinicDbContext : IdentityDbContext<User, Role, Guid>
 {
@@ -64,9 +68,9 @@ public class ClinicDbContext : IdentityDbContext<User, Role, Guid>
             e.HasIndex(x => new { x.ClinicId, x.Code }).IsUnique();
 
             e.HasOne(x => x.Clinic)
-            .WithMany(c => c.Doctors)
-            .HasForeignKey(x => x.ClinicId)
-            .OnDelete(DeleteBehavior.Cascade);
+                .WithMany(c => c.Doctors)
+                .HasForeignKey(x => x.ClinicId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<Service>(e =>
@@ -134,11 +138,12 @@ public class ClinicDbContext : IdentityDbContext<User, Role, Guid>
         {
             e.ToTable("Appointments");
             e.HasKey(x => x.AppointmentId);
-            e.Property(x => x.Source).HasConversion<string>().HasMaxLength(30).HasDefaultValue(AppointmentSource.Web);
+            e.Property(x => x.Source).HasConversion<string>().HasMaxLength(30);
             e.Property(x => x.ContactFullName).HasMaxLength(150).IsRequired();
             e.Property(x => x.ContactPhone).HasMaxLength(20).IsRequired();
             e.Property(x => x.ContactEmail).HasMaxLength(256);
-            e.Property(x => x.Status).HasConversion<string>().HasMaxLength(20).HasDefaultValue(AppointmentStatus.Pending);
+            e.Property(x => x.Status).HasConversion<string>().HasMaxLength(20)
+                .HasDefaultValue(AppointmentStatus.Pending);
             e.Property(x => x.Notes).HasMaxLength(1000);
 
             e.HasIndex(x => new { x.ClinicId, x.StartAt, x.EndAt }).HasDatabaseName("IX_Appt_Time");
@@ -168,7 +173,7 @@ public class ClinicDbContext : IdentityDbContext<User, Role, Guid>
         {
             e.ToTable("Patients");
             e.HasKey(x => x.PatientId);
-            e.Property(k => k.Gender).HasDefaultValue(Gender.X);
+            e.Property(k => k.Gender).HasConversion<string>().HasMaxLength(10);
             e.HasOne(x => x.Clinic)
                 .WithMany(k => k.Patients)
                 .HasForeignKey(x => x.ClinicId);
@@ -241,6 +246,40 @@ public class ClinicDbContext : IdentityDbContext<User, Role, Guid>
                 .WithMany(m => m.Attachments)
                 .HasForeignKey(x => x.RecordId)
                 .OnDelete(DeleteBehavior.Cascade);
+        });
+        modelBuilder.Entity<Bill>(e =>
+        {
+            e.ToTable("Bills");
+            e.HasKey(x => x.BillId);
+            e.HasOne(x => x.Clinic)
+                .WithMany(x => x.Bills)
+                .HasForeignKey(x => x.ClinicId)
+                .OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(x => x.Patient)
+                .WithMany(x => x.Bills)
+                .HasForeignKey(x => x.PatientId)
+                .OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(k => k.Appointment)
+                .WithMany(a => a.Bills)
+                .HasForeignKey(k => k.AppointmentId)
+                .OnDelete(DeleteBehavior.SetNull);
+            e.HasOne(x => x.MedicalRecord)
+                .WithMany(k => k.Bills)
+                .HasForeignKey(x => x.MedicalRecordId)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
+        modelBuilder.Entity<BillItem>(e =>
+        {
+            e.ToTable("BillItems");
+            e.HasKey(x => x.BillItemId);
+            e.HasOne(x => x.Bill)
+                .WithMany(x => x.BillItems)
+                .HasForeignKey(x => x.BillId)
+                .OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(x => x.Service)
+                .WithMany(k => k.BillItems)
+                .HasForeignKey(x => x.ServiceId)
+                .OnDelete(DeleteBehavior.Restrict);
         });
     }
 }

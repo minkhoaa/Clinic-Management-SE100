@@ -26,4 +26,5 @@ public sealed class Clinic
     public ICollection<StaffUser> StaffUsers { get; set; } = new List<StaffUser>();
     public ICollection<Patients> Patients { get; set; } = new List<Patients>();
     public ICollection<DoctorTimeOff> DoctorTimeOffs { get; set; } = new List<DoctorTimeOff>();
+    public IEnumerable<Bill>? Bills { get; set; }
 }

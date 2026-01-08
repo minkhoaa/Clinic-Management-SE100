@@ -5,34 +5,34 @@ using ClinicManagement_API.Domains.Enums;
 namespace ClinicManagement_API.Features.patient_service.dto;
 
 public record PatientDto(
-    Guid PatientId, 
-    Guid ClinicId, 
-    string PatientCode, 
-    string FullName, 
-    Gender Gender, 
-    DateTime? Dob, 
-    string? PrimaryPhone, 
-    string? Email, 
-    string? Note, 
-    string? AddressLine1, 
+    Guid PatientId,
+    Guid ClinicId,
+    string PatientCode,
+    string FullName,
+    Gender Gender,
+    DateTime? Dob,
+    string? PrimaryPhone,
+    string? Email,
+    string? Note,
+    string? AddressLine1,
     Clinic Clinic);
 
 public record CreatePatientDto(
-    Guid ClinicId, 
-    string PatientCode, 
-    Gender Gender, 
-    string FullName, 
-    string? PrimaryPhone, 
-    string? Email, 
-    string? AddressLine1, 
-    DateTime? Dob, 
+    Guid ClinicId,
+    string PatientCode,
+    Gender Gender,
+    string FullName,
+    string? PrimaryPhone,
+    string? Email,
+    string? AddressLine1,
+    DateTime? Dob,
     string? Note);
 
 public record PatientProfileResponse(
     Guid Id,
     string FullName,
     string Gender,
-    string? Dob,
+    DateTime? Dob,
     string? Phone,
     string? Email,
     string? Address,
@@ -47,7 +47,7 @@ public record PatientProfileResponse(
 public record UpdatePatientProfileRequest(
     string FullName,
     string Gender,
-    string? Dob,
+    DateTime? Dob,
     string? Phone,
     string? Email,
     string? Address,
@@ -62,12 +62,11 @@ public record UpdatePatientProfileRequest(
 // Appointment DTOs
 public record AppointmentListItemDto(
     Guid Id,
-    string Title,           // Service name
-    string Doctor,          // Doctor name
-    string Date,            // DD/MM/YYYY
-    string Time,            // HH:mm
+    string Title, // Service name
+    string Doctor, // Doctor name
+    DateTime StartAt,
     string? Note,
-    string Status);         // confirmed | pending | completed | cancelled
+    string Status); // confirmed | pending | completed | cancelled
 
 // Request to cancel appointment
 public record CancelAppointmentRequest(string Reason);
@@ -77,19 +76,19 @@ public record MedicalRecordListItemDto(
     Guid Id,
     string Title,
     string Doctor,
-    string Date,            // Format: "DD/MM/YYYY"
+    DateTime RecordDate,
     string? Diagnosis,
     string? Treatment,
     string? Prescription,
     string? Notes,
-    List<string> Attachments  // List of attachment IDs
+    List<string> Attachments
 );
 
 public record MedicalRecordDetailDto(
     Guid Id,
     string Title,
     string Doctor,
-    string Date,            // Format: "DD/MM/YYYY"
+    DateTime RecordDate,
     string? Diagnosis,
     string? Treatment,
     string? Prescription,
@@ -110,7 +109,7 @@ public record PatientListItemForReceptionistDto(
     string Name,
     string Phone,
     string? Email,
-    string? LastVisit,      // Format: "DD/MM/YYYY" or null
+    DateTime? LastVisit,
     int TotalVisits
 );
 
@@ -119,9 +118,9 @@ public record PatientDetailForReceptionistDto(
     string Name,
     string Phone,
     string? Email,
-    string? LastVisit,
+    DateTime? LastVisit,
     int TotalVisits,
-    string? Dob,            // Format: "DD/MM/YYYY"
+    DateTime? Dob,
     string? Address,
     List<MedicalHistoryItemDto> MedicalHistory,
     List<RecentAppointmentItemDto> Appointments
@@ -129,7 +128,7 @@ public record PatientDetailForReceptionistDto(
 
 public record MedicalHistoryItemDto(
     Guid Id,
-    string Date,
+    DateTime RecordDate,
     string Doctor,
     string Service,
     string? Diagnosis,
@@ -138,8 +137,7 @@ public record MedicalHistoryItemDto(
 
 public record RecentAppointmentItemDto(
     Guid Id,
-    string Date,
-    string Time,
+    DateTime StartAt,
     string Doctor,
     string Service,
     string Status

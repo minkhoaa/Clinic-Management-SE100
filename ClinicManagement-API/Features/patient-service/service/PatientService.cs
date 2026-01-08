@@ -19,12 +19,12 @@ public interface IPatientService
     Task<IResult> GetAppointmentsAsync(ClaimsPrincipal user, Guid? patientId, string? phone);
     Task<IResult> GetAppointmentDetailAsync(Guid id);
     Task<IResult> CancelPatientAppointmentAsync(Guid id, CancelAppointmentRequest request);
-    
+
     // Medical Records
     Task<IResult> GetMedicalRecordsAsync(ClaimsPrincipal user);
     Task<IResult> GetMedicalRecordDetailAsync(Guid id);
     Task<IResult> DownloadAttachmentAsync(Guid recordId, Guid attachmentId);
-    
+
     // For Receptionist
     Task<IResult> GetPatientsForReceptionistAsync(string? search, Guid? clinicId);
     Task<IResult> GetPatientDetailForReceptionistAsync(Guid id);
@@ -60,7 +60,7 @@ public class PatientService : IPatientService
             patient.PatientId,
             patient.FullName,
             patient.Gender.ToString(),
-            patient.Dob?.ToString("yyyy-MM-dd"),
+            patient.Dob,
             patient.PrimaryPhone,
             patient.Email,
             patient.AddressLine1,
@@ -94,10 +94,12 @@ public class PatientService : IPatientService
         {
             patient.Gender = gender;
         }
-        if (!string.IsNullOrEmpty(request.Dob) && DateTime.TryParse(request.Dob, out var dob))
+
+        if (request.Dob.HasValue)
         {
-            patient.Dob = DateTime.SpecifyKind(dob, DateTimeKind.Utc);
+            patient.Dob = DateTime.SpecifyKind(request.Dob.Value, DateTimeKind.Utc);
         }
+
         patient.PrimaryPhone = request.Phone;
         patient.Email = request.Email;
         patient.AddressLine1 = request.Address;
@@ -148,7 +150,8 @@ public class PatientService : IPatientService
         _context.Patients.Add(patient);
         await _context.SaveChangesAsync();
 
-        return Results.Ok(new ApiResponse<object>(true, "Patient created successfully", new { id = patient.PatientId }));
+        return Results.Ok(new ApiResponse<object>(true, "Patient created successfully",
+            new { id = patient.PatientId }));
     }
 
     public async Task<IResult> UpdatePatientAsync(Guid patientId, CreatePatientDto request)
@@ -227,14 +230,14 @@ public class PatientService : IPatientService
             .Select(a => new AppointmentListItemDto(
                 a.AppointmentId,
                 a.Service != null ? a.Service.Name : "Khám tổng quát",
-                a.Doctor != null ? a.Doctor.FullName : "Chưa xác định",
-                a.StartAt.ToString("dd/MM/yyyy"),
-                a.StartAt.ToString("HH:mm"),
+                a.Doctor.FullName,
+                a.StartAt,
                 a.Notes,
                 a.Status.ToString().ToLower()))
             .ToListAsync();
 
-        return Results.Ok(new ApiResponse<List<AppointmentListItemDto>>(true, "Appointments retrieved successfully", appointments));
+        return Results.Ok(
+            new ApiResponse<List<AppointmentListItemDto>>(true, "Appointments retrieved successfully", appointments));
     }
 
     public async Task<IResult> GetAppointmentDetailAsync(Guid id)
@@ -251,13 +254,13 @@ public class PatientService : IPatientService
         var response = new AppointmentListItemDto(
             appointment.AppointmentId,
             appointment.Service != null ? appointment.Service.Name : "Khám tổng quát",
-            appointment.Doctor != null ? appointment.Doctor.FullName : "Chưa xác định",
-            appointment.StartAt.ToString("dd/MM/yyyy"),
-            appointment.StartAt.ToString("HH:mm"),
+            appointment.Doctor.FullName,
+            appointment.StartAt,
             appointment.Notes,
             appointment.Status.ToString().ToLower());
 
-        return Results.Ok(new ApiResponse<AppointmentListItemDto>(true, "Appointment retrieved successfully", response));
+        return Results.Ok(
+            new ApiResponse<AppointmentListItemDto>(true, "Appointment retrieved successfully", response));
     }
 
     public async Task<IResult> CancelPatientAppointmentAsync(Guid id, CancelAppointmentRequest request)
@@ -273,11 +276,12 @@ public class PatientService : IPatientService
 
         // Check if cancellation is within allowed time (not within 2 hours of appointment)
         if (appointment.StartAt < DateTime.UtcNow.AddHours(2))
-            return Results.Conflict(new ApiResponse<object>(false, "Cannot cancel appointment within 2 hours of start time", null));
+            return Results.Conflict(new ApiResponse<object>(false,
+                "Cannot cancel appointment within 2 hours of start time", null));
 
         appointment.Status = AppointmentStatus.Cancelled;
-        appointment.Notes = string.IsNullOrEmpty(appointment.Notes) 
-            ? $"Cancelled: {request.Reason}" 
+        appointment.Notes = string.IsNullOrEmpty(appointment.Notes)
+            ? $"Cancelled: {request.Reason}"
             : $"{appointment.Notes} | Cancelled: {request.Reason}";
         appointment.UpdatedAt = DateTime.UtcNow;
 
@@ -313,7 +317,7 @@ public class PatientService : IPatientService
                 r.RecordId,
                 r.Title,
                 r.Doctor.FullName,
-                r.RecordDate.ToString("dd/MM/yyyy"),
+                r.RecordDate,
                 r.Diagnosis,
                 r.Treatment,
                 r.Prescription,
@@ -322,7 +326,8 @@ public class PatientService : IPatientService
             ))
             .ToListAsync();
 
-        return Results.Ok(new ApiResponse<List<MedicalRecordListItemDto>>(true, "Medical records retrieved successfully", records));
+        return Results.Ok(
+            new ApiResponse<List<MedicalRecordListItemDto>>(true, "Medical records retrieved successfully", records));
     }
 
     public async Task<IResult> GetMedicalRecordDetailAsync(Guid id)
@@ -342,7 +347,7 @@ public class PatientService : IPatientService
             record.RecordId,
             record.Title,
             record.Doctor.FullName,
-            record.RecordDate.ToString("dd/MM/yyyy"),
+            record.RecordDate,
             record.Diagnosis,
             record.Treatment,
             record.Prescription,
@@ -355,7 +360,8 @@ public class PatientService : IPatientService
             )).ToList()
         );
 
-        return Results.Ok(new ApiResponse<MedicalRecordDetailDto>(true, "Medical record retrieved successfully", response));
+        return Results.Ok(
+            new ApiResponse<MedicalRecordDetailDto>(true, "Medical record retrieved successfully", response));
     }
 
     public async Task<IResult> DownloadAttachmentAsync(Guid recordId, Guid attachmentId)
@@ -371,7 +377,7 @@ public class PatientService : IPatientService
 
         // File storage path - adjust based on your storage strategy
         var storagePath = Path.Combine("uploads", "medical-records", attachment.StoredFileName);
-        
+
         if (!File.Exists(storagePath))
         {
             return Results.NotFound(new ApiResponse<object>(false, "File not found on server", null));
@@ -423,7 +429,7 @@ public class PatientService : IPatientService
             p.FullName,
             p.PrimaryPhone ?? "",
             p.Email,
-            p.LastAppointment != default ? p.LastAppointment.ToString("dd/MM/yyyy") : null,
+            p.LastAppointment != default ? p.LastAppointment : null,
             p.TotalVisits
         )).ToList();
 
@@ -448,8 +454,8 @@ public class PatientService : IPatientService
             .Take(10)
             .Select(m => new MedicalHistoryItemDto(
                 m.RecordId,
-                m.RecordDate.ToString("dd/MM/yyyy"),
-                m.Doctor != null ? m.Doctor.FullName : "N/A",
+                m.RecordDate,
+                m.Doctor.FullName,
                 m.Title,
                 m.Diagnosis,
                 m.Notes
@@ -466,9 +472,8 @@ public class PatientService : IPatientService
             .Take(10)
             .Select(a => new RecentAppointmentItemDto(
                 a.AppointmentId,
-                a.StartAt.ToString("dd/MM/yyyy"),
-                a.StartAt.ToString("HH:mm"),
-                a.Doctor != null ? a.Doctor.FullName : "N/A",
+                a.StartAt,
+                a.Doctor.FullName,
                 a.Service != null ? a.Service.Name : "Khám tổng quát",
                 a.Status.ToString().ToLower()
             ))
@@ -489,9 +494,9 @@ public class PatientService : IPatientService
             patient.FullName,
             patient.PrimaryPhone ?? "",
             patient.Email,
-            lastVisit != default ? lastVisit.ToString("dd/MM/yyyy") : null,
+            lastVisit != default ? lastVisit : null,
             totalVisits,
-            patient.Dob?.ToString("dd/MM/yyyy"),
+            patient.Dob,
             patient.AddressLine1,
             medicalHistory,
             appointments

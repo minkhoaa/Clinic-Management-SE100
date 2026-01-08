@@ -35,5 +35,6 @@ public sealed class Appointment
     public Service? Service { get; set; }
     public Patients? Patient { get; set; }
     public ICollection<AppointmentToken> Tokens { get; set; } = new List<AppointmentToken>();
+    public IEnumerable<Bill>? Bills { get; set; }
 }
 

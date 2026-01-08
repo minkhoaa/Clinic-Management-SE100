@@ -11,6 +11,7 @@ public sealed class Service
     [Key]
     [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
     public Guid ServiceId { get; set; }
+
     public Guid ClinicId { get; set; }
     public string Code { get; set; } = default!;
     public string Name { get; set; } = default!;
@@ -21,4 +22,5 @@ public sealed class Service
     public Clinic Clinic { get; set; } = default!;
     public ICollection<DoctorService> DoctorServices { get; set; } = new List<DoctorService>();
     public ICollection<Appointment> Appointments { get; set; } = new List<Appointment>();
+    public ICollection<BillItem>? BillItems { get; set; }
 }
