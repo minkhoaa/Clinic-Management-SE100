@@ -29,4 +29,5 @@ public sealed class Clinic
     public ICollection<DoctorTimeOff> DoctorTimeOffs { get; set; } = new List<DoctorTimeOff>();
     public ICollection<Bill>? Bills { get; set; }
     public ICollection<PrescriptionTemplate> PrescriptionTemplates { get; set; } = new List<PrescriptionTemplate>();
+    public ICollection<Medicine> Medicines { get; set; } = new List<Medicine>();
 }

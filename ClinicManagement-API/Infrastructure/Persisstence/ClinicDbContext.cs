@@ -36,6 +36,8 @@ public class ClinicDbContext : IdentityDbContext<User, Role, Guid>
     public DbSet<PrescriptionTemplate> PrescriptionTemplates => Set<PrescriptionTemplate>();
     public DbSet<Bill> Bills => Set<Bill>();
     public DbSet<BillItem> BillItems => Set<BillItem>();
+    public DbSet<Medicine> Medicines => Set<Medicine>();
+    public DbSet<PrescriptionTemplateMedicine> PrescriptionTemplateMedicines => Set<PrescriptionTemplateMedicine>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -293,6 +295,10 @@ public class ClinicDbContext : IdentityDbContext<User, Role, Guid>
                 .WithMany(k => k.BillItems)
                 .HasForeignKey(x => x.ServiceId)
                 .OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(x => x.Medicine)
+                .WithMany(m => m.BillItems)
+                .HasForeignKey(x => x.MedicineId)
+                .OnDelete(DeleteBehavior.SetNull);
         });
 
         modelBuilder.Entity<PrescriptionTemplate>(e =>
@@ -310,6 +316,37 @@ public class ClinicDbContext : IdentityDbContext<User, Role, Guid>
                 .WithMany(d => d.PrescriptionTemplates)
                 .HasForeignKey(x => x.DoctorId)
                 .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<Medicine>(e =>
+        {
+            e.ToTable("Medicines");
+            e.HasKey(x => x.MedicineId);
+            e.Property(x => x.Code).HasMaxLength(50).IsRequired();
+            e.Property(x => x.Name).HasMaxLength(200).IsRequired();
+            e.Property(x => x.Unit).HasMaxLength(50);
+            e.Property(x => x.Price).HasColumnType("decimal(18,2)");
+            e.HasIndex(x => new { x.ClinicId, x.Code }).IsUnique();
+            e.HasOne(x => x.Clinic)
+                .WithMany(c => c.Medicines)
+                .HasForeignKey(x => x.ClinicId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<PrescriptionTemplateMedicine>(e =>
+        {
+            e.ToTable("PrescriptionTemplateMedicines");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Dosage).HasMaxLength(100).IsRequired();
+            e.Property(x => x.Instructions).HasMaxLength(500).IsRequired();
+            e.HasOne(x => x.Template)
+                .WithMany(t => t.PrescriptionTemplateMedicines)
+                .HasForeignKey(x => x.TemplateId)
+                .OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(x => x.Medicine)
+                .WithMany(m => m.PrescriptionTemplateMedicines)
+                .HasForeignKey(x => x.MedicineId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
     }
 }

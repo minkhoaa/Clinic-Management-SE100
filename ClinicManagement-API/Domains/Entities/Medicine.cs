@@ -4,25 +4,25 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace ClinicManagement_API.Domains.Entities;
 
-public sealed class PrescriptionTemplate
+public sealed class Medicine
 {
     [Key]
     [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
-    public Guid TemplateId { get; set; }
-
+    public Guid MedicineId { get; set; }
+    
     public Guid ClinicId { get; set; }
-    public Guid? DoctorId { get; set; } // null = shared template for all doctors in clinic
-
+    public string Code { get; set; } = default!;
     public string Name { get; set; } = default!;
-    public string? Category { get; set; } // "dental", "general", etc.
-    public string Medicines { get; set; } = "[]"; // JSON array of medicines
-    public string? Notes { get; set; }
-
+    public string? Unit { get; set; }  // Đơn vị: viên, hộp, chai, lọ...
+    public decimal? Price { get; set; }  // Giá bán
+    public string? Description { get; set; }
+    public bool IsActive { get; set; } = true;
+    
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
-
+    
     // Navigation properties
     public Clinic Clinic { get; set; } = default!;
-    public Doctor? Doctor { get; set; }
+    public ICollection<BillItem>? BillItems { get; set; }
     public ICollection<PrescriptionTemplateMedicine>? PrescriptionTemplateMedicines { get; set; }
 }

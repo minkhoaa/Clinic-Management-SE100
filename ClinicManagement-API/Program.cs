@@ -33,6 +33,14 @@ builder.Services.AddIdentity<User, Role>(options =>
     {
         // Disable cookie-based authentication for API
         options.SignIn.RequireConfirmedAccount = false;
+
+        // Relax password requirements for auto-generated passwords (phone numbers)
+        options.Password.RequireDigit = false;
+        options.Password.RequireLowercase = false;
+        options.Password.RequireUppercase = false;
+        options.Password.RequireNonAlphanumeric = false;
+        options.Password.RequiredLength = 6;
+        options.Password.RequiredUniqueChars = 1;
     })
     .AddEntityFrameworkStores<ClinicDbContext>()
     .AddDefaultTokenProviders();

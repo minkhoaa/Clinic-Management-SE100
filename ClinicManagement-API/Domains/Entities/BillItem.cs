@@ -12,6 +12,7 @@ public sealed class BillItem
 
     public Guid BillId { get; set; }
     public Guid? ServiceId { get; set; }
+    public Guid? MedicineId { get; set; } // FK to Medicine
 
     public BillItemType Type { get; set; } = BillItemType.Service;
     public string Name { get; set; } = default!; // Tên dịch vụ/thuốc
@@ -25,4 +26,5 @@ public sealed class BillItem
     // Navigation properties
     public Bill Bill { get; set; } = default!;
     public Service? Service { get; set; }
+    public Medicine? Medicine { get; set; }
 }
