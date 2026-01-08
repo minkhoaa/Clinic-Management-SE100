@@ -57,13 +57,18 @@ public class AuthService : IAuthService
                 });
             var isInRoles = await _userManager.IsInRoleAsync(user, AppRoles.Patient);
             if (!isInRoles) await _userManager.AddToRoleAsync(user, AppRoles.Patient);
-            return Results.Ok(new { isSuccess = true, message = "Register successfully", userId = user.Id });
+
+            return Results.Ok(new Contracts.ApiResponse<RegisterResponse>(
+                true,
+                "Register successfully",
+                new RegisterResponse(user.Id)));
         }
         catch (Exception e)
         {
             return Results.BadRequest(e.Message);
         }
     }
+
 
     public async Task<IResult> Login(LoginDto dto)
     {
@@ -80,7 +85,11 @@ public class AuthService : IAuthService
             if (!isPasswordMatched.Succeeded) return Results.BadRequest("Password is incorrect");
 
             var token = await _jwtGenerator.CreateTokenAsync(existedUser);
-            return Results.Ok(new { existedUser.Id, accessToken = token });
+
+            return Results.Ok(new Contracts.ApiResponse<LoginResponse>(
+                true,
+                "Login successful",
+                new LoginResponse(existedUser.Id, token)));
         }
         catch (Exception e)
         {
