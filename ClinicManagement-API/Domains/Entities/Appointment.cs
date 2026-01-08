@@ -12,6 +12,7 @@ public sealed class Appointment
     [Key]
     [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
     public Guid AppointmentId { get; set; }
+
     public Guid ClinicId { get; set; }
     public Guid DoctorId { get; set; }
     public Guid? ServiceId { get; set; }
@@ -26,6 +27,10 @@ public sealed class Appointment
     public string? ContactEmail { get; set; }
     public string? Notes { get; set; }
     public AppointmentStatus Status { get; set; } = AppointmentStatus.Pending;
+
+    // Actual exam times (set by doctor when starting/completing exam)
+    public DateTime? ActualStartTime { get; set; }
+    public DateTime? ActualEndTime { get; set; }
 
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
