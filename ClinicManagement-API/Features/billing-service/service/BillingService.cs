@@ -10,6 +10,11 @@ public interface IBillingService
     Task<IResult> PayBillAsync(Guid id, PayBillRequest request);
     Task<IResult> CancelBillAsync(Guid id);
     Task<IResult> GetBillingStatsAsync(string? date, Guid? clinicId);
+
+    //Vn Pay api
+    Task<IResult> CreatePaymentUrlAsync(CreatePaymentUrlRequest request);
+    Task<IResult> ReturnUrlAsync(ReturnUrlRequest request);
+    Task<IResult> IpnUrlAsync(IpnUrlRequest request);
 }
 
 public class BillingService : IBillingService
@@ -40,6 +45,21 @@ public class BillingService : IBillingService
     }
 
     public Task<IResult> GetBillingStatsAsync(string? date, Guid? clinicId)
+    {
+        throw new NotImplementedException();
+    }
+
+    public Task<IResult> CreatePaymentUrlAsync(CreatePaymentUrlRequest request)
+    {
+        throw new NotImplementedException();
+    }
+
+    public Task<IResult> ReturnUrlAsync(ReturnUrlRequest request)
+    {
+        throw new NotImplementedException();
+    }
+
+    public Task<IResult> IpnUrlAsync(IpnUrlRequest request)
     {
         throw new NotImplementedException();
     }

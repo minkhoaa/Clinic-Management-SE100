@@ -102,3 +102,25 @@ public record BillingStatsDto(
     decimal TotalPending,
     decimal TotalPaid
 );
+
+// VNPay DTOs
+public record CreatePaymentUrlRequest(
+    Guid BillId,
+    string? ReturnUrl
+);
+
+public record ReturnUrlRequest(
+    string VnpTxnRef,
+    string VnpResponseCode,
+    string VnpSecureHash,
+    string? VnpTransactionNo,
+    decimal? VnpAmount
+);
+
+public record IpnUrlRequest(
+    string VnpTxnRef,
+    string VnpResponseCode,
+    string VnpSecureHash,
+    string? VnpTransactionNo,
+    decimal? VnpAmount
+);

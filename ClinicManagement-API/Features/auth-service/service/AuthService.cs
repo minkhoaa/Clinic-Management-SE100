@@ -11,6 +11,7 @@ public interface IAuthService
     Task<IResult> Register(RegisterDto dto);
     Task<IResult> Login(LoginDto dto);
 }
+
 public class AuthService : IAuthService
 {
     private readonly UserManager<User> _userManager;
@@ -21,9 +22,9 @@ public class AuthService : IAuthService
     public AuthService(
         UserManager<User> userManager,
         RoleManager<Role> roleManager,
-        SignInManager<User> signInManager, 
+        SignInManager<User> signInManager,
         JwtGenerator jwtGenerator
-        )
+    )
     {
         _userManager = userManager;
         _roleManager = roleManager;
@@ -48,14 +49,14 @@ public class AuthService : IAuthService
             var addUserStatus = await _userManager.CreateAsync(user, dto.Password);
             if (!addUserStatus.Succeeded)
                 throw new Exception($"Cannot create new user {addUserStatus.Errors}");
-            var existedRole = await _roleManager.RoleExistsAsync(AppRoles.User);
+            var existedRole = await _roleManager.RoleExistsAsync(AppRoles.Patient);
             if (!existedRole)
                 await _roleManager.CreateAsync(new Role()
                 {
-                    Name = AppRoles.User
+                    Name = AppRoles.Patient
                 });
-            var isInRoles = await _userManager.IsInRoleAsync(user, AppRoles.User);
-            if (!isInRoles) await _userManager.AddToRoleAsync(user, AppRoles.User);
+            var isInRoles = await _userManager.IsInRoleAsync(user, AppRoles.Patient);
+            if (!isInRoles) await _userManager.AddToRoleAsync(user, AppRoles.Patient);
             return Results.Ok(new { isSuccess = true, message = "Register successfully", userId = user.Id });
         }
         catch (Exception e)
@@ -68,9 +69,9 @@ public class AuthService : IAuthService
     {
         try
         {
-            if (string.IsNullOrEmpty(dto.Username)) 
+            if (string.IsNullOrEmpty(dto.Username))
                 return Results.BadRequest("Username is missing");
-            if (string.IsNullOrEmpty(dto.Password)) 
+            if (string.IsNullOrEmpty(dto.Password))
                 return Results.BadRequest("Password is missing");
 
             var existedUser = await _userManager.FindByNameAsync(dto.Username);

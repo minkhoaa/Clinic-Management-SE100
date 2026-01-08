@@ -17,5 +17,10 @@ public static class BillingEndpoint
 
         // Stats
         billing.MapGet("/billing/stats", BillingHandler.GetBillingStats);
+
+        var vnpay = route.MapGroup("/api/vnpay").WithTags("VnPay");
+        vnpay.MapPost("/create", BillingHandler.CreatePaymentUrl);
+        vnpay.MapPost("/return", BillingHandler.ReturnUrl);
+        vnpay.MapPost("/ipn", BillingHandler.IpnUrl);
     }
 }

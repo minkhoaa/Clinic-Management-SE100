@@ -53,7 +53,7 @@ public static class DbSeeder
 
     private static async Task SeedRolesAsync(RoleManager<Role> roleManager)
     {
-        var roles = new[] { AppRoles.Admin, AppRoles.Receptionist, AppRoles.Doctor, AppRoles.User };
+        var roles = new[] { AppRoles.Admin, AppRoles.Receptionist, AppRoles.Doctor, AppRoles.Patient };
         foreach (var roleName in roles)
         {
             if (!await roleManager.RoleExistsAsync(roleName))
@@ -292,7 +292,8 @@ public static class DbSeeder
         return doctors;
     }
 
-    private static async Task SeedDoctorServicesAsync(ClinicDbContext context, List<Doctor> doctors, List<Service> services)
+    private static async Task SeedDoctorServicesAsync(ClinicDbContext context, List<Doctor> doctors,
+        List<Service> services)
     {
         var doctorServices = new List<DoctorService>();
 
@@ -300,7 +301,7 @@ public static class DbSeeder
         foreach (var doctor in doctors)
         {
             var clinicServices = services.Where(s => s.ClinicId == doctor.ClinicId).ToList();
-            
+
             // Each doctor provides general checkup + their specialty service
             var generalService = clinicServices.FirstOrDefault(s => s.Code == "KHAM-TQ");
             if (generalService != null)
@@ -340,7 +341,8 @@ public static class DbSeeder
         Console.WriteLine($"Created {doctorServices.Count} doctor-service links");
     }
 
-    private static async Task SeedDoctorAvailabilityAsync(ClinicDbContext context, List<Clinic> clinics, List<Doctor> doctors)
+    private static async Task SeedDoctorAvailabilityAsync(ClinicDbContext context, List<Clinic> clinics,
+        List<Doctor> doctors)
     {
         var availabilities = new List<DoctorAvailability>();
 

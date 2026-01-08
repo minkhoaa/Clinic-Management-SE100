@@ -1,5 +1,3 @@
-#nullable enable
-
 namespace ClinicManagement_API.Features.receptionist_service.dto;
 
 // Dashboard stats response
@@ -51,7 +49,7 @@ public record UpdateAppointmentRequest(
 public record CancelReasonRequest(string? Reason);
 
 // Simple action response
-public record ActionResultDto(bool Success, Guid Id);
+public record ActionResultDto(bool Success, Guid AppointmentId, Guid? PatientId, string? Username, string? Password);
 
 // Queue item for receptionist queue view
 public record QueueItemDto(

@@ -13,10 +13,9 @@ namespace ClinicManagement_API.Features.booking_service.endpoint
             app.MapGet("/genders", () =>
             {
                 return Enum.GetValues(typeof(Gender))
-                .Cast<Gender>()
-                .Select(e => new EnumDto((int)e, e.ToString()))
-                .ToList();
-
+                    .Cast<Gender>()
+                    .Select(e => new EnumDto((int)e, e.ToString()))
+                    .ToList();
             });
             app.MapGet("/appointment-statuses", () => Enum.GetValues(typeof(AppointmentStatus))
                 .Cast<AppointmentStatus>()
@@ -31,11 +30,10 @@ namespace ClinicManagement_API.Features.booking_service.endpoint
                 new { Value = AppRoles.Admin, Name = "Admin" },
                 new { Value = AppRoles.Receptionist, Name = "Receptionist" },
                 new { Value = AppRoles.Doctor, Name = "Doctor" },
-                new { Value = AppRoles.User, Name = "User" }
+                new { Value = AppRoles.Patient, Name = "Patient" }
             });
         }
-
-
     }
+
     public record EnumDto(int Value, string Name);
 }

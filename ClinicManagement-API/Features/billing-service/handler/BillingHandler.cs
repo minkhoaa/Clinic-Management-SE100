@@ -22,4 +22,13 @@ public static class BillingHandler
 
     public static Task<IResult> GetBillingStats(string? date, Guid? clinicId, IBillingService svc)
         => svc.GetBillingStatsAsync(date, clinicId);
+    
+    public static Task<IResult> CreatePaymentUrl(CreatePaymentUrlRequest request, IBillingService svc)
+        => svc.CreatePaymentUrlAsync(request);
+    
+    public static Task<IResult> ReturnUrl(ReturnUrlRequest request, IBillingService svc)
+        => svc.ReturnUrlAsync(request);
+    
+    public static Task<IResult> IpnUrl(IpnUrlRequest request, IBillingService svc)
+        => svc.IpnUrlAsync(request);
 }

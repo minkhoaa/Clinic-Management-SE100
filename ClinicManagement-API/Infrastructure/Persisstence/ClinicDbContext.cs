@@ -8,6 +8,7 @@ namespace ClinicManagement_API.Infrastructure.Persisstence;
 
 public class User : IdentityUser<Guid>
 {
+    public Patients? Patient { get; set; }
 }
 
 public class Role : IdentityRole<Guid>
@@ -37,7 +38,16 @@ public class ClinicDbContext : IdentityDbContext<User, Role, Guid>
     {
         modelBuilder.Entity<User>().ToTable("User");
         modelBuilder.Entity<Role>().ToTable("Role");
-        modelBuilder.Entity<IdentityUserRole<Guid>>().ToTable("UserRole").HasKey(k => new { k.UserId, k.RoleId });
+        modelBuilder.Entity<User>().HasOne(p => p.Patient).WithOne(u => u.User)
+            .HasForeignKey<Patients>(u => u.UserId)
+            .OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<IdentityUserRole<Guid>>(e =>
+        {
+            e.ToTable("UserRole");
+            e.HasKey(k => new { k.UserId, k.RoleId });
+            e.HasOne<User>().WithMany().HasForeignKey(ur => ur.UserId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne<Role>().WithMany().HasForeignKey(ur => ur.RoleId).OnDelete(DeleteBehavior.Cascade);
+        });
 
         modelBuilder.Ignore<IdentityUserToken<Guid>>();
         modelBuilder.Ignore<IdentityUserLogin<Guid>>();

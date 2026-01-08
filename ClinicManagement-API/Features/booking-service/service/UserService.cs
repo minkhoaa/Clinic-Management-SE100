@@ -3,6 +3,7 @@ using ClinicManagement_API.Domains.Entities;
 using ClinicManagement_API.Domains.Enums;
 using ClinicManagement_API.Features.booking_service.dto;
 using ClinicManagement_API.Infrastructure.Persisstence;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 
 namespace ClinicManagement_API.Features.booking_service.service
@@ -11,7 +12,10 @@ namespace ClinicManagement_API.Features.booking_service.service
     {
         Task<IResult> GetClinicsAsync(string? nameOrCode);
         Task<IResult> GetServicesAsync(Guid? clinicId, string? nameOrCode, bool? isActive);
-        Task<IResult> GetDoctorsAsync(Guid? clinicId, string? nameOrCode, string? specialty, Guid? serviceId, bool? isActive);
+
+        Task<IResult> GetDoctorsAsync(Guid? clinicId, string? nameOrCode, string? specialty, Guid? serviceId,
+            bool? isActive);
+
         Task<IResult> GetAvailabilityAsync(Guid doctorId, DateOnly from, DateOnly to);
         Task<IResult> CreateAvailabilityAsync(CreateDoctorAvailability request);
         Task<IResult> UpdateAvailability(Guid availId, UpdateDoctorAvailability request);
@@ -23,15 +27,20 @@ namespace ClinicManagement_API.Features.booking_service.service
         Task<IResult> ReschedulingAppointmentAsync(string token, DateTime startTime, DateTime startEnd);
         Task<IResult> UpdateAppointmentStatusAsync(Guid id, UpdateAppointmentStatusRequest request);
         Task<IResult> GetTimeSlotsAsync(Guid clinicId, Guid doctorId, DateOnly date);
-
     }
 
     public class UserService : IUserService
     {
         private readonly ClinicDbContext _context;
-        public UserService(ClinicDbContext context)
+        private readonly UserManager<User> _userManager;
+        private readonly RoleManager<Role> _roleManager;
+
+        public UserService(ClinicDbContext context, UserManager<User> userManager,
+            RoleManager<Role> roleManager)
         {
             _context = context;
+            _userManager = userManager;
+            _roleManager = roleManager;
         }
 
         public async Task<IResult> GetClinicsAsync(string? nameOrCode)
@@ -66,13 +75,15 @@ namespace ClinicManagement_API.Features.booking_service.service
 
             var data = await query
                 .OrderBy(x => x.Name)
-                .Select(x => new ServiceDto(x.ServiceId, x.Code, x.Name, x.DefaultDurationMin, x.DefaultPrice, x.IsActive, x.ClinicId))
+                .Select(x => new ServiceDto(x.ServiceId, x.Code, x.Name, x.DefaultDurationMin, x.DefaultPrice,
+                    x.IsActive, x.ClinicId))
                 .ToListAsync();
 
             return Results.Ok(new ApiResponse<IEnumerable<ServiceDto>>(true, "OK", data));
         }
 
-        public async Task<IResult> GetDoctorsAsync(Guid? clinicId, string? nameOrCode, string? specialty, Guid? serviceId, bool? isActive)
+        public async Task<IResult> GetDoctorsAsync(Guid? clinicId, string? nameOrCode, string? specialty,
+            Guid? serviceId, bool? isActive)
         {
             var query = _context.Doctors.AsNoTracking();
 
@@ -95,7 +106,8 @@ namespace ClinicManagement_API.Features.booking_service.service
 
             var data = await query
                 .OrderBy(x => x.FullName)
-                .Select(x => new DoctorDto(x.DoctorId, x.ClinicId, x.Code, x.FullName, x.Specialty, x.Phone, x.Email, x.IsActive))
+                .Select(x => new DoctorDto(x.DoctorId, x.ClinicId, x.Code, x.FullName, x.Specialty, x.Phone, x.Email,
+                    x.IsActive))
                 .ToListAsync();
 
             return Results.Ok(new ApiResponse<IEnumerable<DoctorDto>>(true, "OK", data));
@@ -112,11 +124,14 @@ namespace ClinicManagement_API.Features.booking_service.service
             {
                 var dow = (byte)date.DayOfWeek;
                 var dayAvail = availabilities.Where(x => x.DayOfWeek == dow
-                    && (!x.EffectiveFrom.HasValue || x.EffectiveFrom.Value.Date <= date.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc))
-                    && (!x.EffectiveTo.HasValue || x.EffectiveTo.Value.Date >= date.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc)))
+                                                         && (!x.EffectiveFrom.HasValue || x.EffectiveFrom.Value.Date <=
+                                                             date.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc))
+                                                         && (!x.EffectiveTo.HasValue || x.EffectiveTo.Value.Date >=
+                                                             date.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc)))
                     ;
 
-                results.AddRange(dayAvail.Select(x => new AvailabilityDto(date, x.StartTime, x.EndTime, x.SlotSizeMin)));
+                results.AddRange(dayAvail.Select(x =>
+                    new AvailabilityDto(date, x.StartTime, x.EndTime, x.SlotSizeMin)));
             }
 
             return Results.Ok(new ApiResponse<IEnumerable<AvailabilityDto>>(true, "OK", results));
@@ -156,18 +171,20 @@ namespace ClinicManagement_API.Features.booking_service.service
             _context.DoctorAvailabilities.Update(existedAval);
             await _context.SaveChangesAsync();
             return Results.Ok($"Updated {existedAval.AvailabilityId}");
-
         }
 
         public async Task<IResult> GetSlotsAsync(Guid clinicId, Guid doctorId, Guid? serviceId, DateOnly date)
         {
             var availabilities = await _context.DoctorAvailabilities
-                .Where(x => x.DoctorId == doctorId && x.ClinicId == clinicId && x.IsActive && x.DayOfWeek == (byte)date.DayOfWeek)
+                .Where(x => x.DoctorId == doctorId && x.ClinicId == clinicId && x.IsActive &&
+                            x.DayOfWeek == (byte)date.DayOfWeek)
                 .ToListAsync();
 
             availabilities = availabilities.Where(x =>
-                (!x.EffectiveFrom.HasValue || x.EffectiveFrom.Value.Date <= date.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc)) &&
-                (!x.EffectiveTo.HasValue || x.EffectiveTo.Value.Date >= date.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc))
+                (!x.EffectiveFrom.HasValue ||
+                 x.EffectiveFrom.Value.Date <= date.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc)) &&
+                (!x.EffectiveTo.HasValue ||
+                 x.EffectiveTo.Value.Date >= date.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc))
             ).ToList();
 
             var dateUtc = date.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
@@ -178,7 +195,7 @@ namespace ClinicManagement_API.Features.booking_service.service
 
             var bookedAppointments = await _context.Appointments
                 .Where(a => a.DoctorId == doctorId && a.ClinicId == clinicId && a.StartAt.Date == dateUtc.Date
-                    && a.Status != AppointmentStatus.Cancelled && a.Status != AppointmentStatus.NoShow)
+                            && a.Status != AppointmentStatus.Cancelled && a.Status != AppointmentStatus.NoShow)
                 .Select(a => new { a.StartAt, a.EndAt })
                 .ToListAsync();
 
@@ -198,6 +215,7 @@ namespace ClinicManagement_API.Features.booking_service.service
                     {
                         result.Add(new SlotDto(slotStart, slotEnd));
                     }
+
                     slotStart = slotEnd;
                 }
             }
@@ -217,7 +235,8 @@ namespace ClinicManagement_API.Features.booking_service.service
 
             if (req.ServiceId.HasValue)
             {
-                var serviceExists = await _context.Services.AnyAsync(x => x.ServiceId == req.ServiceId && x.ClinicId == req.ClinicId);
+                var serviceExists =
+                    await _context.Services.AnyAsync(x => x.ServiceId == req.ServiceId && x.ClinicId == req.ClinicId);
                 if (!serviceExists)
                     return Results.BadRequest(new ApiResponse<AppointmentResponse>(false, "Service not found", null));
 
@@ -225,7 +244,8 @@ namespace ClinicManagement_API.Features.booking_service.service
                     ds.DoctorId == req.DoctorId && ds.ServiceId == req.ServiceId && ds.IsEnabled);
 
                 if (!doctorSupportsService)
-                    return Results.BadRequest(new ApiResponse<AppointmentResponse>(false, "Doctor does not offer this service", null));
+                    return Results.BadRequest(
+                        new ApiResponse<AppointmentResponse>(false, "Doctor does not offer this service", null));
             }
 
             var hasTimeOffConflict = await _context.DoctorTimeOffs.AnyAsync(t =>
@@ -233,13 +253,14 @@ namespace ClinicManagement_API.Features.booking_service.service
                 (t.StartAt < req.EndAt && req.StartAt < t.EndAt));
 
             if (hasTimeOffConflict)
-                return Results.Conflict(new ApiResponse<AppointmentResponse>(false, "Doctor is on time off during the selected period.", null));
+                return Results.Conflict(new ApiResponse<AppointmentResponse>(false,
+                    "Doctor is on time off during the selected period.", null));
 
             // Validate slot inside availability
             var date = DateOnly.FromDateTime(req.StartAt);
             var avail = await _context.DoctorAvailabilities
                 .Where(x => x.DoctorId == req.DoctorId && x.ClinicId == req.ClinicId
-                && x.IsActive && x.DayOfWeek == (byte)date.DayOfWeek)
+                                                       && x.IsActive && x.DayOfWeek == (byte)date.DayOfWeek)
                 .ToListAsync();
 
             var inAvail = avail.Any(x =>
@@ -249,9 +270,9 @@ namespace ClinicManagement_API.Features.booking_service.service
                 req.EndAt.TimeOfDay <= x.EndTime);
 
             if (!inAvail)
-                return Results.UnprocessableEntity(new ApiResponse<AppointmentResponse>(false, "Selected time is outside availability", null));
+                return Results.UnprocessableEntity(
+                    new ApiResponse<AppointmentResponse>(false, "Selected time is outside availability", null));
 
-            // Conflict check - only check Appointments (no separate Bookings anymore)
             var hasConflict = await _context.Appointments.AnyAsync(a =>
                 a.ClinicId == req.ClinicId &&
                 a.DoctorId == req.DoctorId &&
@@ -264,13 +285,14 @@ namespace ClinicManagement_API.Features.booking_service.service
 
             var source = req.Channel ?? AppointmentSource.Web;
 
+            // PatientId will be created on confirm - for now just use if provided
             var appointment = new Appointment
             {
                 AppointmentId = Guid.NewGuid(),
                 ClinicId = req.ClinicId,
                 DoctorId = req.DoctorId,
                 ServiceId = req.ServiceId,
-                PatientId = req.PatientId,
+                PatientId = req.PatientId, // Only set if already exists
                 StartAt = req.StartAt,
                 EndAt = req.EndAt,
                 ContactFullName = req.FullName,
@@ -306,7 +328,10 @@ namespace ClinicManagement_API.Features.booking_service.service
             _context.Appointments.Add(appointment);
             await _context.SaveChangesAsync();
 
-            return Results.Created($"/appointments/{appointment.AppointmentId}", new ApiResponse<AppointmentResponse>(true, "Created", new AppointmentResponse(appointment.AppointmentId, appointment.Status, cancelToken, reschedulingToken)));
+            return Results.Created($"/appointments/{appointment.AppointmentId}",
+                new ApiResponse<AppointmentResponse>(true, "Created",
+                    new AppointmentResponse(appointment.AppointmentId, appointment.PatientId, appointment.Status,
+                        cancelToken, reschedulingToken, null, null)));
         }
 
         public async Task<IResult> GetAppointmentAsync(Guid appointmentId)
@@ -315,12 +340,15 @@ namespace ClinicManagement_API.Features.booking_service.service
                 .Include(a => a.Tokens)
                 .FirstOrDefaultAsync(x => x.AppointmentId == appointmentId);
 
-            if (appointment == null) return Results.NotFound(new ApiResponse<AppointmentResponse>(false, "Not found", null));
+            if (appointment == null)
+                return Results.NotFound(new ApiResponse<AppointmentResponse>(false, "Not found", null));
 
             var cancelToken = appointment.Tokens.FirstOrDefault(t => t.Action == "Cancel")?.Token;
             var rescheduleToken = appointment.Tokens.FirstOrDefault(t => t.Action == "Reschedule")?.Token;
 
-            return Results.Ok(new ApiResponse<AppointmentResponse>(true, "OK", new AppointmentResponse(appointment.AppointmentId, appointment.Status, cancelToken, rescheduleToken)));
+            return Results.Ok(new ApiResponse<AppointmentResponse>(true, "OK",
+                new AppointmentResponse(appointment.AppointmentId, appointment.PatientId, appointment.Status,
+                    cancelToken, rescheduleToken, null, null)));
         }
 
         public async Task<IResult> ConfirmAppointmentAsync(Guid appointmentId)
@@ -330,7 +358,8 @@ namespace ClinicManagement_API.Features.booking_service.service
                 return Results.NotFound(new ApiResponse<AppointmentResponse>(false, "Not found", null));
 
             if (appointment.Status != AppointmentStatus.Pending)
-                return Results.BadRequest(new ApiResponse<AppointmentResponse>(false, "Appointment is not pending", null));
+                return Results.BadRequest(
+                    new ApiResponse<AppointmentResponse>(false, "Appointment is not pending", null));
 
             // Check for conflicts with other confirmed appointments
             var conflict = await _context.Appointments.AnyAsync(a =>
@@ -343,7 +372,124 @@ namespace ClinicManagement_API.Features.booking_service.service
                 (a.StartAt < appointment.EndAt && appointment.StartAt < a.EndAt));
 
             if (conflict)
-                return Results.Conflict(new ApiResponse<AppointmentResponse>(false, "Slot already taken by confirmed appointment", null));
+                return Results.Conflict(new ApiResponse<AppointmentResponse>(false,
+                    "Slot already taken by confirmed appointment", null));
+
+            // Create patient and user account on confirmation
+            Guid? patientId = appointment.PatientId;
+            string? createdUsername = null;
+            string? createdPassword = null;
+
+            if (!patientId.HasValue && !string.IsNullOrEmpty(appointment.ContactPhone))
+            {
+                // Track that we're creating a new user
+                createdUsername = appointment.ContactPhone;
+                createdPassword = appointment.ContactPhone;
+
+                // Try to find existing patient by phone
+                var existingPatient = await _context.Patients
+                    .FirstOrDefaultAsync(p =>
+                        p.ClinicId == appointment.ClinicId && p.PrimaryPhone == appointment.ContactPhone);
+
+                if (existingPatient != null)
+                {
+                    patientId = existingPatient.PatientId;
+
+                    // Link user if patient has no user
+                    if (!existingPatient.UserId.HasValue)
+                    {
+                        var existingUser = await _userManager.Users
+                            .FirstOrDefaultAsync(u => u.PhoneNumber == appointment.ContactPhone);
+                        if (existingUser == null)
+                        {
+                            existingUser = new User
+                            {
+                                Id = Guid.NewGuid(),
+                                UserName = appointment.ContactPhone,
+                                PhoneNumber = appointment.ContactPhone,
+                                Email = appointment.ContactEmail,
+                                PhoneNumberConfirmed = true,
+                                SecurityStamp = Guid.NewGuid().ToString()
+                            };
+                            if (!await _roleManager.RoleExistsAsync(AppRoles.Patient))
+                            {
+                                await _roleManager.CreateAsync(new Role() { Name = AppRoles.Patient });
+                            }
+
+                            var createResult = await _userManager.CreateAsync(existingUser, appointment.ContactPhone);
+                            if (createResult.Succeeded)
+                            {
+                                await _userManager.AddToRoleAsync(existingUser, AppRoles.Patient);
+                            }
+                        }
+                        else
+                        {
+                            // User already exists, no new credentials to return
+                            createdUsername = null;
+                            createdPassword = null;
+                        }
+
+                        existingPatient.UserId = existingUser.Id;
+                        await _context.SaveChangesAsync(); // Save patient update immediately
+                    }
+                    else
+                    {
+                        // Patient already has user
+                        createdUsername = null;
+                        createdPassword = null;
+                    }
+                }
+                else
+                {
+                    // Create new user first
+                    var newUser = new User
+                    {
+                        Id = Guid.NewGuid(),
+                        UserName = appointment.ContactPhone,
+                        PhoneNumber = appointment.ContactPhone,
+                        Email = appointment.ContactEmail,
+                        PhoneNumberConfirmed = true,
+                        SecurityStamp = Guid.NewGuid().ToString()
+                    };
+                    if (!await _roleManager.RoleExistsAsync(AppRoles.Patient))
+                    {
+                        await _roleManager.CreateAsync(new Role() { Name = AppRoles.Patient });
+                    }
+
+                    var createResult = await _userManager.CreateAsync(newUser, appointment.ContactPhone);
+                    if (createResult.Succeeded)
+                    {
+                        await _userManager.AddToRoleAsync(newUser, AppRoles.Patient);
+                    }
+
+                    // Create patient first without UserId to avoid FK issues
+                    var patientCount = await _context.Patients.CountAsync(p => p.ClinicId == appointment.ClinicId);
+                    var newPatient = new Patients
+                    {
+                        PatientId = Guid.NewGuid(),
+                        ClinicId = appointment.ClinicId,
+                        PatientCode = $"BN{(patientCount + 1):D6}",
+                        FullName = appointment.ContactFullName,
+                        PrimaryPhone = appointment.ContactPhone,
+                        Email = appointment.ContactEmail,
+                        CreatedAt = DateTime.UtcNow,
+                        UpdatedAt = DateTime.UtcNow
+                    };
+                    _context.Patients.Add(newPatient);
+                    await _context.SaveChangesAsync();
+
+                    // Now update UserId after Patient is saved
+                    if (createResult.Succeeded)
+                    {
+                        newPatient.UserId = newUser.Id;
+                        await _context.SaveChangesAsync();
+                    }
+
+                    patientId = newPatient.PatientId;
+                }
+
+                appointment.PatientId = patientId;
+            }
 
             appointment.Status = AppointmentStatus.Confirmed;
             appointment.UpdatedAt = DateTime.UtcNow;
@@ -353,7 +499,9 @@ namespace ClinicManagement_API.Features.booking_service.service
             var cancelToken = appointment.Tokens.FirstOrDefault(t => t.Action == "Cancel")?.Token;
             var rescheduleToken = appointment.Tokens.FirstOrDefault(t => t.Action == "Reschedule")?.Token;
 
-            return Results.Ok(new ApiResponse<AppointmentResponse>(true, "Appointment confirmed", new AppointmentResponse(appointment.AppointmentId, appointment.Status, cancelToken, rescheduleToken)));
+            return Results.Ok(new ApiResponse<AppointmentResponse>(true, "Appointment confirmed",
+                new AppointmentResponse(appointment.AppointmentId, appointment.PatientId, appointment.Status,
+                    cancelToken, rescheduleToken, createdUsername, createdPassword)));
         }
 
 
@@ -365,20 +513,22 @@ namespace ClinicManagement_API.Features.booking_service.service
                 .FirstOrDefaultAsync();
 
             if (reschedulingRequest == null)
-                return Results.NotFound(new ApiResponse<object>(false, "Reschedule token not found or expired", null));
+                return Results.NotFound(new ApiResponse<object>(false, "Reschedule token not found or expired",
+                    null));
 
             var appointment = reschedulingRequest.Appointment;
 
             if (appointment.Status is AppointmentStatus.Cancelled or AppointmentStatus.NoShow)
-                return Results.Conflict(new ApiResponse<object>(false, "Cannot reschedule cancelled appointment", null));
+                return Results.Conflict(new ApiResponse<object>(false, "Cannot reschedule cancelled appointment",
+                    null));
 
             // Check overlap with other appointments
             var hasConflict = await _context.Appointments.AsNoTracking()
                 .AnyAsync(x => x.AppointmentId != appointment.AppointmentId
-                    && x.DoctorId == appointment.DoctorId
-                    && x.Status != AppointmentStatus.Cancelled
-                    && x.Status != AppointmentStatus.NoShow
-                    && (x.StartAt < endTime && startTime < x.EndAt));
+                               && x.DoctorId == appointment.DoctorId
+                               && x.Status != AppointmentStatus.Cancelled
+                               && x.Status != AppointmentStatus.NoShow
+                               && (x.StartAt < endTime && startTime < x.EndAt));
 
             if (hasConflict)
                 return Results.Conflict(new ApiResponse<object>(false, "Time slot is not available", null));
@@ -416,7 +566,8 @@ namespace ClinicManagement_API.Features.booking_service.service
                 return Results.Conflict(new ApiResponse<object>(false, "Appointment is already cancelled", null));
 
             if (appointment.StartAt < DateTime.UtcNow.AddHours(cutoffHours))
-                return Results.Conflict(new ApiResponse<object>(false, "Cannot cancel appointment within 2 hours of start time", null));
+                return Results.Conflict(new ApiResponse<object>(false,
+                    "Cannot cancel appointment within 2 hours of start time", null));
 
             appointment.Status = AppointmentStatus.Cancelled;
             appointment.UpdatedAt = DateTime.UtcNow;
@@ -432,8 +583,6 @@ namespace ClinicManagement_API.Features.booking_service.service
         }
 
 
-
-
         public async Task<IResult> UpdateAppointmentStatusAsync(Guid id, UpdateAppointmentStatusRequest request)
         {
             var appointment = await _context.Appointments
@@ -447,7 +596,8 @@ namespace ClinicManagement_API.Features.booking_service.service
                 return Results.BadRequest(new ApiResponse<object>(false, "Invalid status", null));
 
             if (appointment.Status == newStatus)
-                return Results.BadRequest(new ApiResponse<object>(false, $"Appointment is already {newStatus.ToString().ToLower()}", null));
+                return Results.BadRequest(new ApiResponse<object>(false,
+                    $"Appointment is already {newStatus.ToString().ToLower()}", null));
 
             appointment.Status = newStatus;
             appointment.UpdatedAt = DateTime.UtcNow;
@@ -476,5 +626,4 @@ namespace ClinicManagement_API.Features.booking_service.service
             return Results.Ok(new ApiResponse<List<string>>(true, "OK", new List<string>()));
         }
     }
-
 }

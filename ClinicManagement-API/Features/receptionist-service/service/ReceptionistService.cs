@@ -3,7 +3,7 @@ using ClinicManagement_API.Domains.Entities;
 using ClinicManagement_API.Domains.Enums;
 using ClinicManagement_API.Features.receptionist_service.dto;
 using ClinicManagement_API.Infrastructure.Persisstence;
-using Microsoft.AspNetCore.Antiforgery;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 
 namespace ClinicManagement_API.Features.receptionist_service.service;
@@ -28,10 +28,14 @@ public interface IReceptionistService
 public class ReceptionistService : IReceptionistService
 {
     private readonly ClinicDbContext _context;
+    private readonly UserManager<User> _userManager;
+    private readonly RoleManager<Role> _roleManager;
 
-    public ReceptionistService(ClinicDbContext context)
+    public ReceptionistService(ClinicDbContext context, UserManager<User> userManager, RoleManager<Role> roleManager)
     {
         _context = context;
+        _userManager = userManager;
+        _roleManager = roleManager;
     }
 
     public async Task<IResult> GetDashboardStatsAsync(Guid? clinicId)
@@ -253,12 +257,103 @@ public class ReceptionistService : IReceptionistService
             return Results.Conflict(new ApiResponse<object>(false, "Time slot already taken", null));
         }
 
+        // Find or create patient with user account
+        Guid patientId;
+        string? createdUsername = null;
+        string? createdPassword = null;
+
+        var existingPatient = await _context.Patients
+            .FirstOrDefaultAsync(p => p.ClinicId == request.ClinicId && p.PrimaryPhone == request.Phone);
+
+        if (existingPatient != null)
+        {
+            patientId = existingPatient.PatientId;
+
+            // Link user if patient has no user
+            if (!existingPatient.UserId.HasValue)
+            {
+                var existingUser = await _userManager.Users
+                    .FirstOrDefaultAsync(u => u.PhoneNumber == request.Phone);
+                if (existingUser == null)
+                {
+                    existingUser = new User
+                    {
+                        Id = Guid.NewGuid(),
+                        UserName = request.Phone,
+                        PhoneNumber = request.Phone,
+                        PhoneNumberConfirmed = true,
+                        SecurityStamp = Guid.NewGuid().ToString()
+                    };
+                    if (!await _roleManager.RoleExistsAsync(AppRoles.Patient))
+                        await _roleManager.CreateAsync(new Role() { Name = AppRoles.Patient });
+                    var createResult = await _userManager.CreateAsync(existingUser, request.Phone);
+                    if (createResult.Succeeded)
+                    {
+                        await _userManager.AddToRoleAsync(existingUser, AppRoles.Patient);
+                    }
+
+                    createdUsername = request.Phone;
+                    createdPassword = request.Phone;
+                }
+
+                existingPatient.UserId = existingUser.Id;
+                await _context.SaveChangesAsync(); // Save patient update immediately
+            }
+        }
+        else
+        {
+            // Create new user first
+            var newUser = new User
+            {
+                Id = Guid.NewGuid(),
+                UserName = request.Phone,
+                PhoneNumber = request.Phone,
+                PhoneNumberConfirmed = true,
+                SecurityStamp = Guid.NewGuid().ToString()
+            };
+            if (!await _roleManager.RoleExistsAsync(AppRoles.Patient))
+                await _roleManager.CreateAsync(new Role() { Name = AppRoles.Patient });
+            var createResult = await _userManager.CreateAsync(newUser, request.Phone);
+            if (createResult.Succeeded)
+            {
+                await _userManager.AddToRoleAsync(newUser, AppRoles.Patient);
+            }
+
+            createdUsername = request.Phone;
+            createdPassword = request.Phone;
+
+            // Create patient first without UserId to avoid FK issues
+            var patientCount = await _context.Patients.CountAsync(p => p.ClinicId == request.ClinicId);
+            var newPatient = new Patients
+            {
+                PatientId = Guid.NewGuid(),
+                ClinicId = request.ClinicId,
+                PatientCode = $"BN{(patientCount + 1):D6}",
+                FullName = request.PatientName,
+                PrimaryPhone = request.Phone,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            };
+            _context.Patients.Add(newPatient);
+            await _context.SaveChangesAsync();
+
+            // Now update UserId after Patient is saved
+            if (createResult.Succeeded)
+            {
+                newPatient.UserId = newUser.Id;
+                await _context.SaveChangesAsync();
+            }
+
+            patientId = newPatient.PatientId;
+        }
+
         var appointment = new Appointment
         {
             AppointmentId = Guid.NewGuid(),
             ClinicId = request.ClinicId,
             DoctorId = request.DoctorId,
             ServiceId = request.ServiceId,
+            PatientId = patientId,
             StartAt = startAt,
             EndAt = endAt,
             Source = AppointmentSource.FrontDesk,
@@ -273,7 +368,7 @@ public class ReceptionistService : IReceptionistService
         await _context.SaveChangesAsync();
 
         return Results.Ok(new ApiResponse<ActionResultDto>(true, "Appointment created",
-            new ActionResultDto(true, appointment.AppointmentId)));
+            new ActionResultDto(true, appointment.AppointmentId, patientId, createdUsername, createdPassword)));
     }
 
     public async Task<IResult> UpdateAppointmentAsync(Guid id, UpdateAppointmentRequest request)
@@ -361,7 +456,7 @@ public class ReceptionistService : IReceptionistService
         await _context.SaveChangesAsync();
 
         return Results.Ok(new ApiResponse<ActionResultDto>(true, "Appointment updated",
-            new ActionResultDto(true, appointment.AppointmentId)));
+            new ActionResultDto(true, appointment.AppointmentId, appointment.PatientId, null, null)));
     }
 
     public async Task<IResult> ConfirmAppointmentAsync(Guid id)
@@ -375,7 +470,7 @@ public class ReceptionistService : IReceptionistService
         if (appointment.Status == AppointmentStatus.Confirmed)
         {
             return Results.Ok(new ApiResponse<ActionResultDto>(true, "Appointment already confirmed",
-                new ActionResultDto(true, appointment.AppointmentId)));
+                new ActionResultDto(true, appointment.AppointmentId, appointment.PatientId, null, null)));
         }
 
         if (appointment.Status == AppointmentStatus.Cancelled)
@@ -388,7 +483,7 @@ public class ReceptionistService : IReceptionistService
         await _context.SaveChangesAsync();
 
         return Results.Ok(new ApiResponse<ActionResultDto>(true, "Appointment confirmed",
-            new ActionResultDto(true, appointment.AppointmentId)));
+            new ActionResultDto(true, appointment.AppointmentId, appointment.PatientId, null, null)));
     }
 
     public async Task<IResult> CancelAppointmentAsync(Guid id, string? reason)
@@ -402,7 +497,7 @@ public class ReceptionistService : IReceptionistService
         if (appointment.Status == AppointmentStatus.Cancelled)
         {
             return Results.Ok(new ApiResponse<ActionResultDto>(true, "Appointment already cancelled",
-                new ActionResultDto(true, appointment.AppointmentId)));
+                new ActionResultDto(true, appointment.AppointmentId, appointment.PatientId, null, null)));
         }
 
         appointment.Status = AppointmentStatus.Cancelled;
@@ -410,7 +505,7 @@ public class ReceptionistService : IReceptionistService
         await _context.SaveChangesAsync();
 
         return Results.Ok(new ApiResponse<ActionResultDto>(true, "Appointment cancelled",
-            new ActionResultDto(true, appointment.AppointmentId)));
+            new ActionResultDto(true, appointment.AppointmentId, appointment.PatientId, null, null)));
     }
 
     public async Task<IResult> CheckinAppointmentAsync(Guid id)
@@ -429,7 +524,7 @@ public class ReceptionistService : IReceptionistService
         if (appointment.Status == AppointmentStatus.CheckedIn)
         {
             return Results.Ok(new ApiResponse<ActionResultDto>(true, "Patient already checked in",
-                new ActionResultDto(true, appointment.AppointmentId)));
+                new ActionResultDto(true, appointment.AppointmentId, appointment.PatientId, null, null)));
         }
 
         appointment.Status = AppointmentStatus.CheckedIn;
@@ -437,7 +532,7 @@ public class ReceptionistService : IReceptionistService
         await _context.SaveChangesAsync();
 
         return Results.Ok(new ApiResponse<ActionResultDto>(true, "Patient checked in",
-            new ActionResultDto(true, appointment.AppointmentId)));
+            new ActionResultDto(true, appointment.AppointmentId, appointment.PatientId, null, null)));
     }
 
     private static string MapStatus(AppointmentStatus status) => status switch

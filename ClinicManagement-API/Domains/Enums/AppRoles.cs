@@ -9,5 +9,5 @@ public static class AppRoles
     public const string Admin = "ADMIN";
     public const string Receptionist = "RECEPTIONIST";
     public const string Doctor = "DOCTOR";
-    public const string User = "USER";
+    public const string Patient = "PATIENT";
 }

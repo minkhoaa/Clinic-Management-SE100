@@ -3,6 +3,7 @@ using System;
 using ClinicManagement_API.Infrastructure.Persisstence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace ClinicManagement_API.Migrations
 {
     [DbContext(typeof(ClinicDbContext))]
-    partial class ClinicDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260108032456_AddUserRoleForeignKeys")]
+    partial class AddUserRoleForeignKeys
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -612,9 +615,6 @@ namespace ClinicManagement_API.Migrations
 
                     b.HasIndex("ClinicId");
 
-                    b.HasIndex("UserId")
-                        .IsUnique();
-
                     b.ToTable("Patients", (string)null);
                 });
 
@@ -990,14 +990,7 @@ namespace ClinicManagement_API.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("ClinicManagement_API.Infrastructure.Persisstence.User", "User")
-                        .WithOne("Patient")
-                        .HasForeignKey("ClinicManagement_API.Domains.Entities.Patients", "UserId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
                     b.Navigation("Clinic");
-
-                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("ClinicManagement_API.Domains.Entities.Service", b =>
@@ -1100,11 +1093,6 @@ namespace ClinicManagement_API.Migrations
                     b.Navigation("BillItems");
 
                     b.Navigation("DoctorServices");
-                });
-
-            modelBuilder.Entity("ClinicManagement_API.Infrastructure.Persisstence.User", b =>
-                {
-                    b.Navigation("Patient");
                 });
 #pragma warning restore 612, 618
         }
