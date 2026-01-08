@@ -126,6 +126,7 @@ public record UpdateMedicalRecordResponse(
 
 // Prescription Template DTOs
 public record MedicineDto(
+    Guid MedicineId, // Required FK to Medicine entity
     string Name,
     string Dosage,
     string Quantity,
@@ -172,7 +173,8 @@ public record CreateExaminationRequest(
 );
 
 public record CreateExaminationResponse(
-    Guid RecordId,
+    Guid ExaminationId,
+    Guid MedicalRecordId,
     Guid? BillId,
     DateTime CreatedAt
 );

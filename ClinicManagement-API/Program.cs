@@ -12,6 +12,8 @@ using ClinicManagement_API.Features.receptionist_service.service;
 using ClinicManagement_API.Features.billing_service.service;
 using ClinicManagement_API.Features.doctor_service.endpoint;
 using ClinicManagement_API.Features.doctor_service.service;
+using ClinicManagement_API.Features.medicine_service.service;
+using ClinicManagement_API.Features.medicine_service.endpoint;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -81,6 +83,7 @@ builder.Services.AddScoped<IPatientService, PatientService>();
 builder.Services.AddScoped<IReceptionistService, ReceptionistService>();
 builder.Services.AddScoped<IBillingService, BillingService>();
 builder.Services.AddScoped<IDoctorPracticeService, DoctorPracticeService>();
+builder.Services.AddScoped<IMedicineService, MedicineService>();
 builder.Services.AddTransient<JwtGenerator>();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>
@@ -136,6 +139,7 @@ app.MapAuthEndpoint();
 app.MapTimeSlotsEndpoint();
 app.MapReceptionistEndpoint();
 app.MapDoctorPracticeEndpoint();
+app.MapMedicineEndpoints();
 
 using (var scope = app.Services.CreateScope())
 {

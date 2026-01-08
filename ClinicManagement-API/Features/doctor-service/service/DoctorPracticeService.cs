@@ -255,6 +255,8 @@ public class DoctorPracticeService : IDoctorPracticeService
         var medicalHistory = await _context.MedicalRecords
             .AsNoTracking()
             .Include(m => m.Doctor)
+            .Include(m => m.Appointment)
+            .ThenInclude(a => a!.Service)
             .Where(m => m.PatientId == patientId)
             .OrderByDescending(m => m.RecordDate)
             .Take(20)
@@ -262,7 +264,9 @@ public class DoctorPracticeService : IDoctorPracticeService
                 m.RecordId,
                 m.RecordDate,
                 m.Doctor.FullName,
-                m.Title,
+                m.Appointment != null && m.Appointment.Service != null
+                    ? m.Appointment.Service.Name
+                    : "Khám tổng quát",
                 m.Diagnosis,
                 m.Notes
             ))
@@ -515,9 +519,11 @@ public class DoctorPracticeService : IDoctorPracticeService
         if (doctor == null)
             return Results.NotFound(new ApiResponse<object>(false, "Doctor not found", null));
 
-        // Get templates for this clinic (shared + doctor's own)
+        // Get templates with medicines loaded from junction table
         var templates = await _context.PrescriptionTemplates
             .AsNoTracking()
+            .Include(t => t.PrescriptionTemplateMedicines)
+            .ThenInclude(ptm => ptm.Medicine)
             .Where(t => t.ClinicId == doctor.ClinicId)
             .Where(t => t.DoctorId == null || t.DoctorId == doctorId.Value)
             .OrderBy(t => t.Name)
@@ -527,7 +533,13 @@ public class DoctorPracticeService : IDoctorPracticeService
             t.TemplateId,
             t.Name,
             t.Category,
-            DeserializeMedicines(t.Medicines),
+            t.PrescriptionTemplateMedicines.Select(ptm => new MedicineDto(
+                ptm.MedicineId,
+                ptm.Medicine.Name,
+                ptm.Dosage,
+                ptm.Quantity.ToString(),
+                ptm.Instructions
+            )).ToList(),
             t.Notes
         )).ToList();
 
@@ -545,6 +557,22 @@ public class DoctorPracticeService : IDoctorPracticeService
         if (doctor == null)
             return Results.NotFound(new ApiResponse<object>(false, "Doctor not found", null));
 
+        // Validate all MedicineIds exist and belong to the same clinic
+        var medicineIds = request.Medicines.Select(m => m.MedicineId).ToList();
+
+        var existingMedicines = await _context.Medicines
+            .Where(m => medicineIds.Contains(m.MedicineId) && m.ClinicId == doctor.ClinicId && m.IsActive)
+            .Select(m => m.MedicineId)
+            .ToListAsync();
+
+        var missingIds = medicineIds.Except(existingMedicines).ToList();
+        if (missingIds.Any())
+        {
+            return Results.BadRequest(new ApiResponse<object>(false,
+                $"Some medicines not found or inactive: {string.Join(", ", missingIds)}", null));
+        }
+
+        // Create template
         var template = new PrescriptionTemplate
         {
             TemplateId = Guid.NewGuid(),
@@ -552,35 +580,30 @@ public class DoctorPracticeService : IDoctorPracticeService
             DoctorId = doctorId.Value,
             Name = request.Name,
             Category = request.Category,
-            Medicines = SerializeMedicines(request.Medicines),
             Notes = request.Notes,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
         };
 
         _context.PrescriptionTemplates.Add(template);
+
+        // Create junction table records
+        var templateMedicines = request.Medicines.Select(m => new PrescriptionTemplateMedicine
+        {
+            Id = Guid.NewGuid(),
+            TemplateId = template.TemplateId,
+            MedicineId = m.MedicineId,
+            Dosage = m.Dosage,
+            Quantity = int.Parse(m.Quantity),
+            Instructions = m.Instructions
+        }).ToList();
+
+        _context.PrescriptionTemplateMedicines.AddRange(templateMedicines);
         await _context.SaveChangesAsync();
 
         return Results.Created($"/api/doctor/prescription-templates/{template.TemplateId}",
             new ApiResponse<CreatePrescriptionTemplateResponse>(true, "Template created",
                 new CreatePrescriptionTemplateResponse(template.TemplateId, template.CreatedAt)));
-    }
-
-    private static string SerializeMedicines(List<MedicineDto> medicines)
-    {
-        return JsonSerializer.Serialize(medicines);
-    }
-
-    private static List<MedicineDto> DeserializeMedicines(string json)
-    {
-        try
-        {
-            return JsonSerializer.Deserialize<List<MedicineDto>>(json) ?? new List<MedicineDto>();
-        }
-        catch
-        {
-            return new List<MedicineDto>();
-        }
     }
 
     public async Task<IResult> CreateExaminationAsync(ClaimsPrincipal user, CreateExaminationRequest request)
@@ -690,6 +713,6 @@ public class DoctorPracticeService : IDoctorPracticeService
 
         return Results.Created($"/api/doctor/medical-records/{record.RecordId}",
             new ApiResponse<CreateExaminationResponse>(true, "Examination created",
-                new CreateExaminationResponse(record.RecordId, billId, record.CreatedAt)));
+                new CreateExaminationResponse(record.RecordId, record.RecordId, billId, record.CreatedAt)));
     }
 }

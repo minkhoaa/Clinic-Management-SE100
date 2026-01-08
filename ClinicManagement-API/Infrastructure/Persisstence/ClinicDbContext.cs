@@ -307,7 +307,6 @@ public class ClinicDbContext : IdentityDbContext<User, Role, Guid>
             e.HasKey(x => x.TemplateId);
             e.Property(x => x.Name).HasMaxLength(200).IsRequired();
             e.Property(x => x.Category).HasMaxLength(50);
-            e.Property(x => x.Medicines).IsRequired();
             e.HasOne(x => x.Clinic)
                 .WithMany(c => c.PrescriptionTemplates)
                 .HasForeignKey(x => x.ClinicId)

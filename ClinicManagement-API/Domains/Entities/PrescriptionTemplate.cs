@@ -15,7 +15,6 @@ public sealed class PrescriptionTemplate
 
     public string Name { get; set; } = default!;
     public string? Category { get; set; } // "dental", "general", etc.
-    public string Medicines { get; set; } = "[]"; // JSON array of medicines
     public string? Notes { get; set; }
 
     public DateTime CreatedAt { get; set; }
@@ -24,5 +23,7 @@ public sealed class PrescriptionTemplate
     // Navigation properties
     public Clinic Clinic { get; set; } = default!;
     public Doctor? Doctor { get; set; }
-    public ICollection<PrescriptionTemplateMedicine>? PrescriptionTemplateMedicines { get; set; }
+
+    public ICollection<PrescriptionTemplateMedicine> PrescriptionTemplateMedicines { get; set; } =
+        new List<PrescriptionTemplateMedicine>();
 }
