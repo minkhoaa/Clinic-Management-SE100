@@ -290,19 +290,28 @@ public class BillingService : IBillingService
         if (!VnPayHelper.VerifySignature(vnpParams, _vnPayOptions.HashSecret))
             return Results.Redirect($"{frontendUrl}?success=false&error=invalid_signature");
 
-        // Extract required values
+        // Extract required values from VNPay response
         vnpParams.TryGetValue("vnp_ResponseCode", out var responseCode);
         vnpParams.TryGetValue("vnp_TxnRef", out var txnRef);
         vnpParams.TryGetValue("vnp_TransactionNo", out var transactionNo);
         vnpParams.TryGetValue("vnp_Amount", out var amountStr);
+        vnpParams.TryGetValue("vnp_OrderInfo", out var orderInfo);
+        vnpParams.TryGetValue("vnp_BankCode", out var bankCode);
+        vnpParams.TryGetValue("vnp_PayDate", out var payDate);
+        vnpParams.TryGetValue("vnp_TransactionStatus", out var transactionStatus);
 
         decimal.TryParse(amountStr, out var amount);
+        var actualAmount = amount / 100; // VNPay sends x100
 
         // Extract billId from txnRef (format: billId_timestamp)
         var billIdStr = txnRef?.Split('_')[0];
 
         if (responseCode != "00")
-            return Results.Redirect($"{frontendUrl}?success=false&code={responseCode}&billId={billIdStr}");
+        {
+            var errorMessage = Uri.EscapeDataString(GetVnPayErrorMessage(responseCode ?? "99"));
+            return Results.Redirect(
+                $"{frontendUrl}?success=false&code={responseCode}&message={errorMessage}&billId={billIdStr}");
+        }
 
         // Update bill status on successful payment
         if (Guid.TryParse(billIdStr, out var billId))
@@ -312,7 +321,7 @@ public class BillingService : IBillingService
             {
                 bill.Status = BillStatus.Paid;
                 bill.PaymentMethod = PaymentMethod.VnPay;
-                bill.PaidAmount = amount / 100; // VNPay sends x100
+                bill.PaidAmount = actualAmount;
                 bill.ChangeAmount = 0;
                 bill.PaymentDate = DateTime.UtcNow;
                 bill.Notes = $"VNPay Transaction: {transactionNo}";
@@ -321,8 +330,10 @@ public class BillingService : IBillingService
             }
         }
 
-        // Redirect to frontend with success params
-        return Results.Redirect($"{frontendUrl}?success=true&billId={billIdStr}&transactionNo={transactionNo}");
+        // Redirect to frontend with all payment info
+        var redirectParams =
+            $"success=true&billId={billIdStr}&transactionNo={transactionNo}&amount={actualAmount}&bankCode={bankCode}&payDate={payDate}&orderInfo={Uri.EscapeDataString(orderInfo ?? "")}";
+        return Results.Redirect($"{frontendUrl}?{redirectParams}");
     }
 
     public async Task<IResult> IpnUrlAsync(Dictionary<string, string> vnpParams)
