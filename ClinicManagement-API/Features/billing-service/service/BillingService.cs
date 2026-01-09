@@ -246,22 +246,27 @@ public class BillingService : IBillingService
             return Results.NotFound("Bill information not found");
         if (bill.Status != BillStatus.Pending)
             return Results.BadRequest(new ApiResponse<object>(false, "Bill already paid", null));
+
+        // VNPay requires Vietnam timezone (UTC+7)
+        var vnTimezone = TimeZoneInfo.FindSystemTimeZoneById("Asia/Ho_Chi_Minh");
+        var vnNow = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, vnTimezone);
+
         var vnpayParams = new SortedDictionary<string, string>()
         {
             { "vnp_Version", _vnPayOptions.Version },
             { "vnp_Command", "pay" },
             { "vnp_TmnCode", _vnPayOptions.TmnCode },
             { "vnp_Amount", ((long)(bill.TotalAmount * 100)).ToString() }, // VNPay x100
-            { "vnp_CreateDate", DateTime.Now.ToString("yyyyMMddHHmmss") },
+            { "vnp_CreateDate", vnNow.ToString("yyyyMMddHHmmss") },
             { "vnp_CurrCode", _vnPayOptions.CurrCode },
-            { "vnp_IpAddr", "127.0.0.1" }, // Lấy từ HttpContext nếu cần
+            { "vnp_IpAddr", "127.0.0.1" },
             { "vnp_Locale", _vnPayOptions.Locale },
             { "vnp_OrderInfo", $"Thanh toan hoa don {bill.InvoiceNumber}" },
             { "vnp_OrderType", "billpayment" },
             { "vnp_ReturnUrl", request.ReturnUrl ?? _vnPayOptions.ReturnUrl },
             { "vnp_TxnRef", bill.BillId.ToString() },
             { "vnp_BankCode", "VNPAYQR" },
-            { "vnp_ExpireDate", DateTime.Now.AddMinutes(15).ToString("yyyyMMddHHmmss") }
+            { "vnp_ExpireDate", vnNow.AddMinutes(15).ToString("yyyyMMddHHmmss") }
         };
         var paymentUrl = VnPayHelper.BuildPaymentUrl(_vnPayOptions.PaymentUrl, vnpayParams, _vnPayOptions.HashSecret);
         return Results.Ok(new ApiResponse<object>(true, "Payment URL created", paymentUrl));
