@@ -709,6 +709,17 @@ public class DoctorPracticeService : IDoctorPracticeService
             billId = bill.BillId;
         }
 
+        if (request.AppointmentId != Guid.Empty)
+        {
+            var appointment = await _context.Appointments.FindAsync(request.AppointmentId);
+            if (appointment != null && appointment.Status != AppointmentStatus.Completed)
+            {
+                appointment.Status = AppointmentStatus.Completed;
+                appointment.ActualEndTime = DateTime.UtcNow;
+                appointment.UpdatedAt = DateTime.UtcNow;
+            }
+        }
+
         await _context.SaveChangesAsync();
 
         return Results.Created($"/api/doctor/medical-records/{record.RecordId}",
