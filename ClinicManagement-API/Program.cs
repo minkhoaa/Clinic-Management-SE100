@@ -100,17 +100,21 @@ builder.Services.AddCors(option => option.AddPolicy("FE",
         .AllowAnyHeader().AllowAnyMethod().AllowCredentials()));
 
 // FluentEmail configuration (from ENV or appsettings)
-var smtpHost = Environment.GetEnvironmentVariable("EMAIL__SMTPHOST")
+// Helper to get non-empty env var
+string? GetEnvOrNull(string key) =>
+    Environment.GetEnvironmentVariable(key) is { Length: > 0 } val ? val : null;
+
+var smtpHost = GetEnvOrNull("EMAIL__SMTPHOST")
                ?? builder.Configuration["Email:SmtpHost"] ?? "smtp.gmail.com";
-var smtpPort = int.Parse(Environment.GetEnvironmentVariable("EMAIL__SMTPPORT")
+var smtpPort = int.Parse(GetEnvOrNull("EMAIL__SMTPPORT")
                          ?? builder.Configuration["Email:SmtpPort"] ?? "587");
-var smtpUser = Environment.GetEnvironmentVariable("EMAIL__USERNAME")
+var smtpUser = GetEnvOrNull("EMAIL__USERNAME")
                ?? builder.Configuration["Email:Username"] ?? "";
-var smtpPass = Environment.GetEnvironmentVariable("EMAIL__PASSWORD")
+var smtpPass = GetEnvOrNull("EMAIL__PASSWORD")
                ?? builder.Configuration["Email:Password"] ?? "";
-var fromEmail = Environment.GetEnvironmentVariable("EMAIL__FROMEMAIL")
+var fromEmail = GetEnvOrNull("EMAIL__FROMEMAIL")
                 ?? builder.Configuration["Email:FromEmail"] ?? "noreply@clinic.com";
-var fromName = Environment.GetEnvironmentVariable("EMAIL__FROMNAME")
+var fromName = GetEnvOrNull("EMAIL__FROMNAME")
                ?? builder.Configuration["Email:FromName"] ?? "Clinic";
 
 builder.Services
