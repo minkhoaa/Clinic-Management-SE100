@@ -192,6 +192,7 @@ using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<ClinicDbContext>();
     await db.Database.MigrateAsync();
+    await DbSeeder.SeedAsync(scope.ServiceProvider);
 }
 
 app.UseAuthentication();
