@@ -33,30 +33,20 @@ public static class BillingHandler
     public static Task<IResult> CreatePaymentUrl(CreatePaymentUrlRequest request, IBillingService svc)
         => svc.CreatePaymentUrlAsync(request);
 
-    // VNPay callbacks - receive query string params
-    public static Task<IResult> ReturnUrl(
-        [FromQuery(Name = "vnp_TxnRef")] string vnpTxnRef,
-        [FromQuery(Name = "vnp_ResponseCode")] string vnpResponseCode,
-        [FromQuery(Name = "vnp_SecureHash")] string vnpSecureHash,
-        [FromQuery(Name = "vnp_TransactionNo")]
-        string? vnpTransactionNo,
-        [FromQuery(Name = "vnp_Amount")] decimal? vnpAmount,
-        IBillingService svc)
+    // VNPay callbacks - receive ALL query string params for proper signature verification
+    public static Task<IResult> ReturnUrl(HttpContext context, IBillingService svc)
     {
-        var request = new ReturnUrlRequest(vnpTxnRef, vnpResponseCode, vnpSecureHash, vnpTransactionNo, vnpAmount);
-        return svc.ReturnUrlAsync(request);
+        // Get all query parameters as dictionary
+        var allParams = context.Request.Query
+            .ToDictionary(x => x.Key, x => x.Value.ToString());
+        return svc.ReturnUrlAsync(allParams);
     }
 
-    public static Task<IResult> IpnUrl(
-        [FromQuery(Name = "vnp_TxnRef")] string vnpTxnRef,
-        [FromQuery(Name = "vnp_ResponseCode")] string vnpResponseCode,
-        [FromQuery(Name = "vnp_SecureHash")] string vnpSecureHash,
-        [FromQuery(Name = "vnp_TransactionNo")]
-        string? vnpTransactionNo,
-        [FromQuery(Name = "vnp_Amount")] decimal? vnpAmount,
-        IBillingService svc)
+    // VNPay IPN callback - receive ALL query params for proper signature verification
+    public static Task<IResult> IpnUrl(HttpContext context, IBillingService svc)
     {
-        var request = new IpnUrlRequest(vnpTxnRef, vnpResponseCode, vnpSecureHash, vnpTransactionNo, vnpAmount);
-        return svc.IpnUrlAsync(request);
+        var allParams = context.Request.Query
+            .ToDictionary(x => x.Key, x => x.Value.ToString());
+        return svc.IpnUrlAsync(allParams);
     }
 }

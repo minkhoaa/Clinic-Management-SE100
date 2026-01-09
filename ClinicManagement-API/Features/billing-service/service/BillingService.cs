@@ -21,8 +21,8 @@ public interface IBillingService
 
     //Vn Pay api
     Task<IResult> CreatePaymentUrlAsync(CreatePaymentUrlRequest request);
-    Task<IResult> ReturnUrlAsync(ReturnUrlRequest request);
-    Task<IResult> IpnUrlAsync(IpnUrlRequest request);
+    Task<IResult> ReturnUrlAsync(Dictionary<string, string> vnpParams);
+    Task<IResult> IpnUrlAsync(Dictionary<string, string> vnpParams);
 }
 
 public class BillingService : IBillingService
@@ -247,9 +247,12 @@ public class BillingService : IBillingService
         if (bill.Status != BillStatus.Pending)
             return Results.BadRequest(new ApiResponse<object>(false, "Bill already paid", null));
 
-        // VNPay requires Vietnam timezone (UTC+7)
+
         var vnTimezone = TimeZoneInfo.FindSystemTimeZoneById("Asia/Ho_Chi_Minh");
         var vnNow = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, vnTimezone);
+
+        // Create unique TxnRef with timestamp to avoid duplicate transactions
+        var txnRef = $"{bill.BillId}_{vnNow:HHmmss}";
 
         var vnpayParams = new SortedDictionary<string, string>()
         {
@@ -264,11 +267,11 @@ public class BillingService : IBillingService
             { "vnp_OrderInfo", $"Thanh toan hoa don {bill.InvoiceNumber}" },
             { "vnp_OrderType", "billpayment" },
             { "vnp_ReturnUrl", request.ReturnUrl ?? _vnPayOptions.ReturnUrl },
-            { "vnp_TxnRef", bill.BillId.ToString() },
+            { "vnp_TxnRef", txnRef },
             { "vnp_ExpireDate", vnNow.AddMinutes(15).ToString("yyyyMMddHHmmss") }
         };
 
-        // Only add BankCode if specified (leave empty to let user choose bank on VNPay page)
+
         if (!string.IsNullOrEmpty(request.BankCode))
         {
             vnpayParams["vnp_BankCode"] = request.BankCode;
@@ -278,47 +281,69 @@ public class BillingService : IBillingService
         return Results.Ok(new ApiResponse<object>(true, "Payment URL created", paymentUrl));
     }
 
-    public async Task<IResult> ReturnUrlAsync(ReturnUrlRequest request)
+    public async Task<IResult> ReturnUrlAsync(Dictionary<string, string> vnpParams)
     {
-        var vnpParams = new Dictionary<string, string>
-        {
-            { "vnp_TxnRef", request.VnpTxnRef },
-            { "vnp_ResponseCode", request.VnpResponseCode },
-            { "vnp_SecureHash", request.VnpSecureHash },
-            { "vnp_TransactionNo", request.VnpTransactionNo ?? "" },
-            { "vnp_Amount", request.VnpAmount?.ToString() ?? "0" }
-        };
+        // Frontend URL to redirect after processing
+        var frontendUrl = "http://localhost:3000/payment/result";
+
+        // Verify signature with ALL parameters from VNPay
         if (!VnPayHelper.VerifySignature(vnpParams, _vnPayOptions.HashSecret))
-            return Results.BadRequest(new ApiResponse<object>(false, "Invalid signature", null));
-        if (request.VnpResponseCode != "00")
-            return Results.Ok(new ApiResponse<object>(false, "Payment failed", new
-            {
-                code = request.VnpResponseCode,
-                message = GetVnPayErrorMessage(request.VnpResponseCode)
-            }));
-        return Results.Ok(new ApiResponse<object>(true, "Payment successful", new
+            return Results.Redirect($"{frontendUrl}?success=false&error=invalid_signature");
+
+        // Extract required values
+        vnpParams.TryGetValue("vnp_ResponseCode", out var responseCode);
+        vnpParams.TryGetValue("vnp_TxnRef", out var txnRef);
+        vnpParams.TryGetValue("vnp_TransactionNo", out var transactionNo);
+        vnpParams.TryGetValue("vnp_Amount", out var amountStr);
+
+        decimal.TryParse(amountStr, out var amount);
+
+        // Extract billId from txnRef (format: billId_timestamp)
+        var billIdStr = txnRef?.Split('_')[0];
+
+        if (responseCode != "00")
+            return Results.Redirect($"{frontendUrl}?success=false&code={responseCode}&billId={billIdStr}");
+
+        // Update bill status on successful payment
+        if (Guid.TryParse(billIdStr, out var billId))
         {
-            billId = request.VnpTxnRef,
-            transactionNo = request.VnpTransactionNo
-        }));
+            var bill = await _context.Bills.FindAsync(billId);
+            if (bill != null && bill.Status == BillStatus.Pending)
+            {
+                bill.Status = BillStatus.Paid;
+                bill.PaymentMethod = PaymentMethod.VnPay;
+                bill.PaidAmount = amount / 100; // VNPay sends x100
+                bill.ChangeAmount = 0;
+                bill.PaymentDate = DateTime.UtcNow;
+                bill.Notes = $"VNPay Transaction: {transactionNo}";
+                bill.UpdatedAt = DateTime.UtcNow;
+                await _context.SaveChangesAsync();
+            }
+        }
+
+        // Redirect to frontend with success params
+        return Results.Redirect($"{frontendUrl}?success=true&billId={billIdStr}&transactionNo={transactionNo}");
     }
 
-    public async Task<IResult> IpnUrlAsync(IpnUrlRequest request)
+    public async Task<IResult> IpnUrlAsync(Dictionary<string, string> vnpParams)
     {
         await using var transaction = await _context.Database.BeginTransactionAsync();
         try
         {
-            var vnpParams = new Dictionary<string, string>
-            {
-                { "vnp_TxnRef", request.VnpTxnRef },
-                { "vnp_ResponseCode", request.VnpResponseCode },
-                { "vnp_SecureHash", request.VnpSecureHash },
-                { "vnp_TransactionNo", request.VnpTransactionNo ?? "" },
-                { "vnp_Amount", request.VnpAmount?.ToString() ?? "0" }
-            };
+            // Verify signature with ALL parameters from VNPay
             if (!VnPayHelper.VerifySignature(vnpParams, _vnPayOptions.HashSecret))
                 return Results.Json(new { RspCode = "97", Message = "Invalid signature" });
-            if (!Guid.TryParse(request.VnpTxnRef, out var billId))
+
+            // Extract required values
+            vnpParams.TryGetValue("vnp_TxnRef", out var txnRef);
+            vnpParams.TryGetValue("vnp_ResponseCode", out var responseCode);
+            vnpParams.TryGetValue("vnp_TransactionNo", out var transactionNo);
+            vnpParams.TryGetValue("vnp_Amount", out var amountStr);
+            decimal.TryParse(amountStr, out var amount);
+
+            // Extract billId from txnRef (format: billId_timestamp)
+            var billIdStr = txnRef?.Split('_')[0];
+            if (!Guid.TryParse(billIdStr, out var billId))
                 return Results.Json(new { RspCode = "01", Message = "Order not found" });
 
             var bill = await _context.Bills.FindAsync(billId);
@@ -326,14 +351,15 @@ public class BillingService : IBillingService
                 return Results.Json(new { RspCode = "01", Message = "Order not found" });
             if (bill.Status == BillStatus.Paid)
                 return Results.Json(new { RspCode = "02", Message = "Order already confirmed" });
-            if (request.VnpResponseCode != "00")
+            if (responseCode != "00")
                 return Results.Json(new { RspCode = "00", Message = "Confirm Success" });
+
             bill.Status = BillStatus.Paid;
-            bill.PaymentMethod = PaymentMethod.Transfer; // VNPay = Transfer
-            bill.PaidAmount = request.VnpAmount / 100; // VNPay gửi x100
+            bill.PaymentMethod = PaymentMethod.VnPay;
+            bill.PaidAmount = amount / 100; // VNPay sends x100
             bill.ChangeAmount = 0;
             bill.PaymentDate = DateTime.UtcNow;
-            bill.Notes = $"VNPay Transaction: {request.VnpTransactionNo}";
+            bill.Notes = $"VNPay IPN Transaction: {transactionNo}";
             bill.UpdatedAt = DateTime.UtcNow;
             await _context.SaveChangesAsync();
             await transaction.CommitAsync();
