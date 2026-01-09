@@ -17,12 +17,15 @@ using ClinicManagement_API.Features.doctor_service.service;
 using ClinicManagement_API.Features.medicine_service.service;
 using ClinicManagement_API.Features.medicine_service.endpoint;
 using ClinicManagement_API.Features.email_service;
+using DotNetEnv;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 
+// Load .env file if exists (for local development)
+Env.TraversePath().Load();
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -38,8 +41,14 @@ var jwtIssuer = Environment.GetEnvironmentVariable("JWTSETTINGS__ISSUER")
                 ?? builder.Configuration["JwtSettings:Issuer"] ?? "ClinicApi";
 var jwtAudience = Environment.GetEnvironmentVariable("JWTSETTINGS__AUDIENCE")
                   ?? builder.Configuration["JwtSettings:Audience"] ?? "ClinicApiClient";
-var jwtSettings = new JwtSettings { Key = jwtKey, Issuer = jwtIssuer, Audience = jwtAudience };
-builder.Services.AddSingleton(jwtSettings);
+
+// Register JwtSettings with IOptions pattern
+builder.Services.Configure<JwtSettings>(options =>
+{
+    options.Key = jwtKey;
+    options.Issuer = jwtIssuer;
+    options.Audience = jwtAudience;
+});
 
 // VnPay Options from ENV
 builder.Services.Configure<VnPayOptions>(options =>
@@ -88,9 +97,9 @@ builder.Services.AddAuthentication(options =>
         {
             ValidateAudience = false,
             ValidateIssuer = false,
-            ValidAudience = jwtSettings.Audience,
-            ValidIssuer = jwtSettings.Issuer,
-            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSettings.Key)),
+            ValidAudience = jwtAudience,
+            ValidIssuer = jwtIssuer,
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey)),
             ClockSkew = TimeSpan.Zero
         };
     });

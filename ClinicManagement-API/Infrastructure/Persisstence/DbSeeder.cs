@@ -129,7 +129,11 @@ public static class DbSeeder
         UserManager<User> userManager, User user, string password, string role)
     {
         var existingUser = await userManager.FindByNameAsync(user.UserName!);
-        if (existingUser != null) return null;
+        if (existingUser != null)
+        {
+            Console.WriteLine($"User {user.UserName} already exists, skipping...");
+            return null;
+        }
 
         user.Id = Guid.NewGuid();
         var result = await userManager.CreateAsync(user, password);
@@ -137,6 +141,11 @@ public static class DbSeeder
         {
             await userManager.AddToRoleAsync(user, role);
             Console.WriteLine($"Created {role} user: {user.UserName} / {password}");
+        }
+        else
+        {
+            Console.WriteLine(
+                $"FAILED to create user {user.UserName}: {string.Join(", ", result.Errors.Select(e => e.Description))}");
         }
 
         return result;
