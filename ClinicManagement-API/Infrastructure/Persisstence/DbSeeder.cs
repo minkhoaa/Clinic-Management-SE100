@@ -48,8 +48,8 @@ public static class DbSeeder
         // Seed Patients with User accounts
         var patients = await SeedPatientsAsync(context, userManager, clinics);
 
-        // Seed Staff Users (Receptionists)
-        await SeedStaffUsersAsync(context, userManager, clinics);
+        // Seed Staff Users (Receptionists + Doctors)
+        await SeedStaffUsersAsync(context, userManager, clinics, doctors);
 
         // Seed Appointments with various statuses
         var appointments = await SeedAppointmentsAsync(context, clinics, doctors, services, patients);
@@ -648,7 +648,7 @@ public static class DbSeeder
     }
 
     private static async Task SeedStaffUsersAsync(
-        ClinicDbContext context, UserManager<User> userManager, List<Clinic> clinics)
+        ClinicDbContext context, UserManager<User> userManager, List<Clinic> clinics, List<Doctor> doctors)
     {
         var staffUsers = new List<StaffUser>();
         var clinic1 = clinics[0];
@@ -669,50 +669,96 @@ public static class DbSeeder
             EmailConfirmed = true
         }, "Letan@123", AppRoles.Receptionist);
 
-        staffUsers.AddRange(new[]
+        // Get receptionist user IDs
+        var letan1User = await userManager.FindByNameAsync("letan1");
+        var letan2User = await userManager.FindByNameAsync("letan2");
+        var adminUser = await userManager.FindByNameAsync("admin");
+
+        // Add Receptionists to StaffUsers
+        if (letan1User != null)
         {
-            new StaffUser
+            staffUsers.Add(new StaffUser
             {
-                UserId = Guid.NewGuid(),
+                UserId = letan1User.Id,
                 ClinicId = clinic1.ClinicId,
                 Username = "letan1",
                 FullName = "Phạm Thị Lễ Tân",
                 Role = AppRoles.Receptionist,
                 IsActive = true
-            },
-            new StaffUser
+            });
+        }
+
+        if (adminUser != null)
+        {
+            staffUsers.Add(new StaffUser
             {
-                UserId = Guid.NewGuid(),
+                UserId = adminUser.Id,
                 ClinicId = clinic1.ClinicId,
-                Username = "admin_hg",
+                Username = "admin",
                 FullName = "Nguyễn Quản Lý",
                 Role = AppRoles.Admin,
                 IsActive = true
-            },
-            new StaffUser
+            });
+        }
+
+        if (letan2User != null)
+        {
+            staffUsers.Add(new StaffUser
             {
-                UserId = Guid.NewGuid(),
+                UserId = letan2User.Id,
                 ClinicId = clinic2.ClinicId,
                 Username = "letan2",
                 FullName = "Trần Văn Tiếp Tân",
                 Role = AppRoles.Receptionist,
                 IsActive = true
-            },
-            // Inactive staff for edge case testing
-            new StaffUser
+            });
+        }
+
+        // Add Doctors to StaffUsers
+        var doctorUsernames = new Dictionary<string, string>
+        {
+            { "BS. Nguyễn Văn An", "doctor.an" },
+            { "BS. Trần Thị Bình", "doctor.binh" },
+            { "TS.BS. Lê Hoàng Cường", "doctor.cuong" },
+            { "BS. Phạm Minh Đức", "doctor.duc" },
+            { "BS. Võ Thị Hương", "doctor.huong" }
+        };
+
+        foreach (var doctor in doctors.Where(d => d.IsActive))
+        {
+            if (doctorUsernames.TryGetValue(doctor.FullName, out var username))
             {
-                UserId = Guid.NewGuid(),
-                ClinicId = clinic1.ClinicId,
-                Username = "letan_old",
-                FullName = "Nguyễn Văn Cũ (Nghỉ việc)",
-                Role = AppRoles.Receptionist,
-                IsActive = false
+                var doctorUser = await userManager.FindByNameAsync(username);
+                if (doctorUser != null)
+                {
+                    staffUsers.Add(new StaffUser
+                    {
+                        UserId = doctorUser.Id,
+                        ClinicId = doctor.ClinicId,
+                        Username = username,
+                        FullName = doctor.FullName,
+                        Role = AppRoles.Doctor,
+                        IsActive = true
+                    });
+                }
             }
+        }
+
+        // Inactive staff for edge case testing
+        staffUsers.Add(new StaffUser
+        {
+            UserId = Guid.NewGuid(),
+            ClinicId = clinic1.ClinicId,
+            Username = "letan_old",
+            FullName = "Nguyễn Văn Cũ (Nghỉ việc)",
+            Role = AppRoles.Receptionist,
+            IsActive = false
         });
 
         context.StaffUsers.AddRange(staffUsers);
         await context.SaveChangesAsync();
-        Console.WriteLine($"Created {staffUsers.Count} staff users (including 1 inactive)");
+        Console.WriteLine(
+            $"Created {staffUsers.Count} staff users (Receptionists: 2, Admin: 1, Doctors: {doctors.Count(d => d.IsActive)}, Inactive: 1)");
     }
 
     private static async Task<List<Appointment>> SeedAppointmentsAsync(
