@@ -1,10 +1,18 @@
+using System.Globalization;
+using ClinicManagement_API.Contracts;
+using ClinicManagement_API.Domains.Entities;
+using ClinicManagement_API.Domains.Enums;
 using ClinicManagement_API.Features.billing_service.dto;
+using ClinicManagement_API.Features.billing_service.helper;
+using ClinicManagement_API.Infrastructure.Persisstence;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 namespace ClinicManagement_API.Features.billing_service.service;
 
 public interface IBillingService
 {
-    Task<IResult> GetBillsAsync(string? status, string? search, Guid? clinicId);
+    Task<IResult> GetBillsAsync(BillStatus? status, Guid? clinicId);
     Task<IResult> GetBillDetailAsync(Guid id);
     Task<IResult> CreateBillAsync(CreateBillRequest request);
     Task<IResult> PayBillAsync(Guid id, PayBillRequest request);
@@ -19,48 +27,337 @@ public interface IBillingService
 
 public class BillingService : IBillingService
 {
-    public Task<IResult> GetBillsAsync(string? status, string? search, Guid? clinicId)
+    private readonly ClinicDbContext _context;
+    private readonly VnPayOptions _vnPayOptions;
+
+    public BillingService(ClinicDbContext context, IOptions<VnPayOptions> options)
     {
-        throw new NotImplementedException();
+        _context = context;
+        _vnPayOptions = options.Value;
     }
 
-    public Task<IResult> GetBillDetailAsync(Guid id)
+    public async Task<IResult> GetBillsAsync(BillStatus? status, Guid? clinicId)
     {
-        throw new NotImplementedException();
+        var bills = _context.Bills.AsNoTracking()
+            .Include(k => k.Patient)
+            .Include(k => k.BillItems)
+            .ThenInclude(k => k.Service)
+            .Include(k => k.BillItems)
+            .ThenInclude(k => k.Medicine)
+            .AsQueryable();
+        if (status.HasValue)
+            bills = bills.Where(k => k.Status == status);
+        if (clinicId.HasValue) bills = bills.Where(k => k.ClinicId == clinicId);
+        var result = await bills.OrderByDescending(k => k.PaymentDate)
+            .Select(k => new BillListResponseDto(
+                k.BillId, k.Patient.FullName,
+                k.Patient.PrimaryPhone ?? k.Patient.EmergencyPhone ?? "",
+                k.BillItems.Select(a => a.Service != null ? a.Service.Name :
+                    a.Medicine != null ? a.Medicine.Name : "Unknown").ToList(),
+                k.TotalAmount,
+                k.CreatedAt,
+                k.Status
+            )).ToListAsync();
+        return Results.Ok(new ApiResponse<List<BillListResponseDto>>(true, "Get bills successfully", result));
     }
 
-    public Task<IResult> CreateBillAsync(CreateBillRequest request)
+    public async Task<IResult> GetBillDetailAsync(Guid id)
     {
-        throw new NotImplementedException();
+        var bill = await _context.Bills.AsNoTracking()
+            .Include(b => b.Patient)
+            .Include(b => b.BillItems)
+            .ThenInclude(bi => bi.Service)
+            .Include(b => b.BillItems)
+            .ThenInclude(bi => bi.Medicine)
+            .Include(b => b.Appointment)
+            .ThenInclude(a => a!.Doctor)
+            .FirstOrDefaultAsync(b => b.BillId == id);
+
+        if (bill == null)
+            return Results.NotFound(new ApiResponse<object>(false, "Bill not found", null));
+
+        var result = new BillDetailDto(
+            Id: bill.BillId,
+            InvoiceNumber: bill.InvoiceNumber,
+            CreatedAt: bill.CreatedAt,
+            PaymentDate: bill.PaymentDate,
+            Status: bill.Status,
+            Patient: new PatientInfoDto(
+                Id: bill.Patient.PatientId,
+                Name: bill.Patient.FullName,
+                Phone: bill.Patient.PrimaryPhone ?? bill.Patient.EmergencyPhone ?? "",
+                Email: bill.Patient.Email,
+                Address: bill.Patient.AddressLine1
+            ),
+            Items: bill.BillItems.Select(bi => new BillItemDto(
+                Id: bi.BillItemId,
+                Type: bi.Type.ToString().ToLower(),
+                Name: bi.Name,
+                Quantity: bi.Quantity,
+                Unit: bi.Unit,
+                UnitPrice: bi.UnitPrice,
+                Amount: bi.Amount,
+                ToothNumber: bi.ToothNumber,
+                Notes: bi.Notes
+            )).ToList(),
+            AppointmentId: bill.AppointmentId,
+            MedicalRecordId: bill.MedicalRecordId,
+            Doctor: bill.Appointment?.Doctor.FullName,
+            Subtotal: bill.Subtotal,
+            Discount: bill.Discount,
+            DiscountPercent: bill.DiscountPercent,
+            InsuranceCovered: bill.InsuranceCovered,
+            TotalAmount: bill.TotalAmount,
+            PaymentMethod: bill.PaymentMethod,
+            PaidAmount: bill.PaidAmount,
+            ChangeAmount: bill.ChangeAmount,
+            Notes: bill.Notes,
+            CreatedBy: bill.CreatedById?.ToString()
+        );
+
+        return Results.Ok(new ApiResponse<BillDetailDto>(true, "Bill detail retrieved", result));
     }
 
-    public Task<IResult> PayBillAsync(Guid id, PayBillRequest request)
+    public async Task<IResult> CreateBillAsync(CreateBillRequest request)
     {
-        throw new NotImplementedException();
+        if (!request.Items.Any())
+            return Results.BadRequest(new ApiResponse<object>(false, "Items cannot be empty", null));
+        var clinicExists = await _context.Clinics.AnyAsync(c => c.ClinicId == request.ClinicId);
+        if (!clinicExists)
+            return Results.NotFound(new ApiResponse<object>(false, "Clinic not found", null));
+        var patientExists = await _context.Patients.AnyAsync(p => p.PatientId == request.PatientId);
+        if (!patientExists)
+            return Results.NotFound(new ApiResponse<object>(false, "Patient not found", null));
+        var invoiceNumber = await GenerateInvoiceNumber(request.ClinicId);
+        var subtotal = request.Items.Sum(i => i.UnitPrice * i.Quantity);
+        var discount = request.Discount ?? 0;
+        if (request.DiscountPercent.HasValue)
+            discount = subtotal * request.DiscountPercent.Value / 100;
+        var totalAmount = subtotal - discount;
+        var bill = new Bill
+        {
+            BillId = Guid.NewGuid(),
+            ClinicId = request.ClinicId,
+            PatientId = request.PatientId,
+            AppointmentId = request.AppointmentId,
+            InvoiceNumber = invoiceNumber,
+            Status = BillStatus.Pending,
+            Subtotal = subtotal,
+            Discount = discount,
+            DiscountPercent = request.DiscountPercent,
+            TotalAmount = totalAmount,
+            Notes = request.Notes,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+        await _context.Bills.AddAsync(bill);
+        var items = request.Items.Select(i => new BillItem
+        {
+            BillItemId = Guid.NewGuid(),
+            BillId = bill.BillId,
+            Type = i.Type,
+            Name = i.Name,
+            Quantity = i.Quantity,
+            Unit = i.Unit,
+            UnitPrice = i.UnitPrice,
+            Amount = i.UnitPrice * i.Quantity,
+            ToothNumber = i.ToothNumber,
+            Notes = i.Notes,
+        });
+        await _context.BillItems.AddRangeAsync(items);
+
+        await _context.SaveChangesAsync();
+        return Results.Ok(new ApiResponse<object>(true, "Bill created successfully", null));
     }
 
-    public Task<IResult> CancelBillAsync(Guid id)
+    public async Task<IResult> PayBillAsync(Guid id, PayBillRequest request)
     {
-        throw new NotImplementedException();
+        var bill = await _context.Bills.FirstOrDefaultAsync(b => b.BillId == id);
+        if (bill == null)
+            return Results.NotFound(new ApiResponse<object>(false, "Bill not found", null));
+        if (bill.Status != BillStatus.Pending)
+            return Results.BadRequest(new ApiResponse<object>(false, "Bill is not pending", null));
+        if (request.Amount < bill.TotalAmount)
+        {
+            return Results.BadRequest(new ApiResponse<object>(false, "Paid amount is less than total amount", null));
+        }
+
+        await using var transaction = await _context.Database.BeginTransactionAsync();
+        try
+        {
+            bill.Status = BillStatus.Paid;
+            bill.PaymentDate = DateTime.Now;
+            bill.PaidAmount = request.Amount;
+            bill.ChangeAmount = request.Amount - bill.TotalAmount;
+            bill.PaymentMethod = request.PaymentMethod;
+            bill.Notes = request.Notes;
+            await _context.SaveChangesAsync();
+            await transaction.CommitAsync();
+            return Results.Ok(new ApiResponse<object>(true, "Bill paid successfully", null));
+        }
+        catch (Exception)
+        {
+            await transaction.RollbackAsync();
+            throw;
+        }
     }
 
-    public Task<IResult> GetBillingStatsAsync(string? date, Guid? clinicId)
+    public async Task<IResult> CancelBillAsync(Guid id)
     {
-        throw new NotImplementedException();
+        var bill = await _context.Bills.FindAsync(id);
+        if (bill == null)
+            return Results.NotFound(new ApiResponse<object>(false, "Bill not found", null));
+        if (bill.Status != BillStatus.Pending)
+            return Results.BadRequest(new ApiResponse<object>(false, "Bill is not pending", null));
+        bill.Status = BillStatus.Cancelled;
+        bill.UpdatedAt = DateTime.UtcNow;
+        await _context.SaveChangesAsync();
+        return Results.Ok(new ApiResponse<object>(true, "Bill cancelled successfully", null));
     }
 
-    public Task<IResult> CreatePaymentUrlAsync(CreatePaymentUrlRequest request)
+    public async Task<IResult> GetBillingStatsAsync(string? date, Guid? clinicId)
     {
-        throw new NotImplementedException();
+        var targetDate = DateTime.UtcNow.Date;
+        if (!string.IsNullOrEmpty(date))
+        {
+            targetDate = DateTime.ParseExact(date, "yyyy-MM-dd", null);
+        }
+
+        var nextDay = targetDate.AddDays(1);
+        var query = _context.Bills.AsQueryable();
+        if (clinicId.HasValue)
+            query = query.Where(b => b.ClinicId == clinicId.Value);
+
+        var bills = await query.Where(b => b.CreatedAt >= targetDate && b.CreatedAt < nextDay).ToListAsync();
+
+        var totalPending = bills.Where(k => k.Status == BillStatus.Pending).Sum(k => k.TotalAmount);
+        var totalPaid = bills.Where(k => k.Status == BillStatus.Paid).Sum(k => k.TotalAmount);
+        var totalCancelled = bills.Where(k => k.Status == BillStatus.Cancelled).Sum(k => k.TotalAmount);
+        var totalRefunded = bills.Where(k => k.Status == BillStatus.Refunded).Sum(k => k.TotalAmount);
+
+        return Results.Ok(new ApiResponse<BillingStatsDto>(true, "Billing stats retrieved successfully",
+            new BillingStatsDto(totalPending, totalPaid, totalCancelled, totalRefunded)));
     }
 
-    public Task<IResult> ReturnUrlAsync(ReturnUrlRequest request)
+    public async Task<IResult> CreatePaymentUrlAsync(CreatePaymentUrlRequest request)
     {
-        throw new NotImplementedException();
+        var bill = await _context.Bills.FindAsync(request.BillId);
+        if (bill == null)
+            return Results.NotFound("Bill information not found");
+        if (bill.Status != BillStatus.Pending)
+            return Results.BadRequest(new ApiResponse<object>(false, "Bill already paid", null));
+        var vnpayParams = new SortedDictionary<string, string>()
+        {
+            { "vnp_Version", _vnPayOptions.Version },
+            { "vnp_Command", "pay" },
+            { "vnp_TmnCode", _vnPayOptions.TmnCode },
+            { "vnp_Amount", ((long)(bill.TotalAmount * 100)).ToString() }, // VNPay x100
+            { "vnp_CreateDate", DateTime.Now.ToString("yyyyMMddHHmmss") },
+            { "vnp_CurrCode", _vnPayOptions.CurrCode },
+            { "vnp_IpAddr", "127.0.0.1" }, // Lấy từ HttpContext nếu cần
+            { "vnp_Locale", _vnPayOptions.Locale },
+            { "vnp_OrderInfo", $"Thanh toan hoa don {bill.InvoiceNumber}" },
+            { "vnp_OrderType", "billpayment" },
+            { "vnp_ReturnUrl", request.ReturnUrl ?? _vnPayOptions.ReturnUrl },
+            { "vnp_TxnRef", bill.BillId.ToString() },
+            { "vnp_BankCode", "VNPAYQR" },
+            { "vnp_ExpireDate", DateTime.Now.AddMinutes(15).ToString("yyyyMMddHHmmss") }
+        };
+        var paymentUrl = VnPayHelper.BuildPaymentUrl(_vnPayOptions.PaymentUrl, vnpayParams, _vnPayOptions.HashSecret);
+        return Results.Ok(new ApiResponse<object>(true, "Payment URL created", paymentUrl));
     }
 
-    public Task<IResult> IpnUrlAsync(IpnUrlRequest request)
+    public async Task<IResult> ReturnUrlAsync(ReturnUrlRequest request)
     {
-        throw new NotImplementedException();
+        var vnpParams = new Dictionary<string, string>
+        {
+            { "vnp_TxnRef", request.VnpTxnRef },
+            { "vnp_ResponseCode", request.VnpResponseCode },
+            { "vnp_SecureHash", request.VnpSecureHash },
+            { "vnp_TransactionNo", request.VnpTransactionNo ?? "" },
+            { "vnp_Amount", request.VnpAmount?.ToString() ?? "0" }
+        };
+        if (!VnPayHelper.VerifySignature(vnpParams, _vnPayOptions.HashSecret))
+            return Results.BadRequest(new ApiResponse<object>(false, "Invalid signature", null));
+        if (request.VnpResponseCode != "00")
+            return Results.Ok(new ApiResponse<object>(false, "Payment failed", new
+            {
+                code = request.VnpResponseCode,
+                message = GetVnPayErrorMessage(request.VnpResponseCode)
+            }));
+        return Results.Ok(new ApiResponse<object>(true, "Payment successful", new
+        {
+            billId = request.VnpTxnRef,
+            transactionNo = request.VnpTransactionNo
+        }));
+    }
+
+    public async Task<IResult> IpnUrlAsync(IpnUrlRequest request)
+    {
+        await using var transaction = await _context.Database.BeginTransactionAsync();
+        try
+        {
+            var vnpParams = new Dictionary<string, string>
+            {
+                { "vnp_TxnRef", request.VnpTxnRef },
+                { "vnp_ResponseCode", request.VnpResponseCode },
+                { "vnp_SecureHash", request.VnpSecureHash },
+                { "vnp_TransactionNo", request.VnpTransactionNo ?? "" },
+                { "vnp_Amount", request.VnpAmount?.ToString() ?? "0" }
+            };
+            if (!VnPayHelper.VerifySignature(vnpParams, _vnPayOptions.HashSecret))
+                return Results.Json(new { RspCode = "97", Message = "Invalid signature" });
+            if (!Guid.TryParse(request.VnpTxnRef, out var billId))
+                return Results.Json(new { RspCode = "01", Message = "Order not found" });
+
+            var bill = await _context.Bills.FindAsync(billId);
+            if (bill == null)
+                return Results.Json(new { RspCode = "01", Message = "Order not found" });
+            if (bill.Status == BillStatus.Paid)
+                return Results.Json(new { RspCode = "02", Message = "Order already confirmed" });
+            if (request.VnpResponseCode != "00")
+                return Results.Json(new { RspCode = "00", Message = "Confirm Success" });
+            bill.Status = BillStatus.Paid;
+            bill.PaymentMethod = PaymentMethod.Transfer; // VNPay = Transfer
+            bill.PaidAmount = request.VnpAmount / 100; // VNPay gửi x100
+            bill.ChangeAmount = 0;
+            bill.PaymentDate = DateTime.UtcNow;
+            bill.Notes = $"VNPay Transaction: {request.VnpTransactionNo}";
+            bill.UpdatedAt = DateTime.UtcNow;
+            await _context.SaveChangesAsync();
+            await transaction.CommitAsync();
+            return Results.Json(new { RspCode = "00", Message = "Confirm Success" });
+        }
+        catch (Exception e)
+        {
+            await transaction.RollbackAsync();
+            throw new Exception(e.Message);
+        }
+    }
+
+    private string GetVnPayErrorMessage(string code) => code switch
+    {
+        "07" => "Trừ tiền thành công nhưng giao dịch bị nghi ngờ",
+        "09" => "Thẻ/Tài khoản chưa đăng ký Internet Banking",
+        "10" => "Xác thực thông tin thẻ/tài khoản không đúng quá 3 lần",
+        "11" => "Đã hết hạn chờ thanh toán",
+        "12" => "Thẻ/Tài khoản bị khóa",
+        "24" => "Khách hàng hủy giao dịch",
+        "51" => "Tài khoản không đủ số dư",
+        "65" => "Tài khoản đã vượt quá hạn mức giao dịch trong ngày",
+        "75" => "Ngân hàng thanh toán đang bảo trì",
+        "79" => "Nhập sai mật khẩu thanh toán quá số lần quy định",
+        _ => "Lỗi không xác định"
+    };
+
+    private async Task<string> GenerateInvoiceNumber(Guid clinicId)
+    {
+        var year = DateTime.UtcNow.Year;
+        var count = await _context.Bills
+            .Where(b => b.ClinicId == clinicId && b.CreatedAt.Year == year)
+            .CountAsync();
+
+        return $"HD-{year}-{(count + 1):D4}";
+        // Kết quả: "HD-2026-0001", "HD-2026-0002"...
     }
 }

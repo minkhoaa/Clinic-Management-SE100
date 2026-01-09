@@ -2,6 +2,8 @@ using System.Text;
 using ClinicManagement_API.Features.auth_service.endpoint;
 using ClinicManagement_API.Features.auth_service.helper;
 using ClinicManagement_API.Features.auth_service.service;
+using ClinicManagement_API.Features.billing_service.endpoint;
+using ClinicManagement_API.Features.billing_service.helper;
 using ClinicManagement_API.Features.booking_service.service;
 using ClinicManagement_API.Features.patient_service.endpoint;
 using ClinicManagement_API.Features.patient_service.service;
@@ -30,6 +32,7 @@ var connectionString = Environment.GetEnvironmentVariable("CONNECTIONSTRING__CLI
 builder.Services.Configure<JwtSettings>(builder.Configuration.GetSection("JwtSettings"));
 var jwtSettings = builder.Configuration.GetSection("JwtSettings").Get<JwtSettings>()
                   ?? throw new Exception("Missing valid jwt settings");
+builder.Services.Configure<VnPayOptions>(builder.Configuration.GetSection("VnPay"));
 builder.Services.AddDbContext<ClinicDbContext>(option => option.UseNpgsql(connectionString));
 builder.Services.AddIdentity<User, Role>(options =>
     {
@@ -140,6 +143,7 @@ app.MapTimeSlotsEndpoint();
 app.MapReceptionistEndpoint();
 app.MapDoctorPracticeEndpoint();
 app.MapMedicineEndpoints();
+app.MapBillingEndpoint();
 
 using (var scope = app.Services.CreateScope())
 {

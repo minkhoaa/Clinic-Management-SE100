@@ -3,7 +3,7 @@ using ClinicManagement_API.Domains.Enums;
 namespace ClinicManagement_API.Features.billing_service.dto;
 
 // Bill list item for receptionist
-public record BillListItemDto(
+public record BillListResponseDto(
     Guid Id,
     string PatientName,
     string Phone,
@@ -100,7 +100,9 @@ public record PayBillRequest(
 // Billing stats
 public record BillingStatsDto(
     decimal TotalPending,
-    decimal TotalPaid
+    decimal TotalPaid,
+    decimal TotalCancelled,
+    decimal TotalRefunded
 );
 
 // VNPay DTOs

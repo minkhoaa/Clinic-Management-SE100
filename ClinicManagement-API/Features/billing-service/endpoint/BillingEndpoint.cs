@@ -20,7 +20,7 @@ public static class BillingEndpoint
 
         var vnpay = route.MapGroup("/api/vnpay").WithTags("VnPay");
         vnpay.MapPost("/create", BillingHandler.CreatePaymentUrl);
-        vnpay.MapPost("/return", BillingHandler.ReturnUrl);
-        vnpay.MapPost("/ipn", BillingHandler.IpnUrl);
+        vnpay.MapGet("/return", BillingHandler.ReturnUrl); // GET for redirect
+        vnpay.MapGet("/ipn", BillingHandler.IpnUrl); // GET for callback
     }
 }
