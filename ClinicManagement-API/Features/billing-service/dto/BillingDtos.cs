@@ -108,7 +108,8 @@ public record BillingStatsDto(
 // VNPay DTOs
 public record CreatePaymentUrlRequest(
     Guid BillId,
-    string? ReturnUrl
+    string? ReturnUrl,
+    string? BankCode // Optional: VNPAYQR, VNBANK, INTCARD, or specific bank code
 );
 
 public record ReturnUrlRequest(

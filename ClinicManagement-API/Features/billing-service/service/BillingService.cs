@@ -265,9 +265,15 @@ public class BillingService : IBillingService
             { "vnp_OrderType", "billpayment" },
             { "vnp_ReturnUrl", request.ReturnUrl ?? _vnPayOptions.ReturnUrl },
             { "vnp_TxnRef", bill.BillId.ToString() },
-            { "vnp_BankCode", "VNPAYQR" },
             { "vnp_ExpireDate", vnNow.AddMinutes(15).ToString("yyyyMMddHHmmss") }
         };
+
+        // Only add BankCode if specified (leave empty to let user choose bank on VNPay page)
+        if (!string.IsNullOrEmpty(request.BankCode))
+        {
+            vnpayParams["vnp_BankCode"] = request.BankCode;
+        }
+
         var paymentUrl = VnPayHelper.BuildPaymentUrl(_vnPayOptions.PaymentUrl, vnpayParams, _vnPayOptions.HashSecret);
         return Results.Ok(new ApiResponse<object>(true, "Payment URL created", paymentUrl));
     }
