@@ -5,8 +5,8 @@
       dockerfile: Dockerfile
     ports:
       - "5000:8080"
-    environment:
-      - ConnectionStrings__Clinic_DB=Host=clinic-database;Port=5432;Database=clinic-db;Username=clinic;Password=clinic
+    env_file:
+      - .env
     networks:
       - backend
     depends_on:

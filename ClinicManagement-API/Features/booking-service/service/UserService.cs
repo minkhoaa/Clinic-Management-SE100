@@ -2,6 +2,7 @@ using ClinicManagement_API.Contracts;
 using ClinicManagement_API.Domains.Entities;
 using ClinicManagement_API.Domains.Enums;
 using ClinicManagement_API.Features.booking_service.dto;
+using ClinicManagement_API.Features.email_service;
 using ClinicManagement_API.Infrastructure.Persisstence;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -34,13 +35,15 @@ namespace ClinicManagement_API.Features.booking_service.service
         private readonly ClinicDbContext _context;
         private readonly UserManager<User> _userManager;
         private readonly RoleManager<Role> _roleManager;
+        private readonly IBookingEmailService _emailService;
 
         public UserService(ClinicDbContext context, UserManager<User> userManager,
-            RoleManager<Role> roleManager)
+            RoleManager<Role> roleManager, IBookingEmailService emailService)
         {
             _context = context;
             _userManager = userManager;
             _roleManager = roleManager;
+            _emailService = emailService;
         }
 
         public async Task<IResult> GetClinicsAsync(string? nameOrCode)
@@ -327,6 +330,40 @@ namespace ClinicManagement_API.Features.booking_service.service
 
             _context.Appointments.Add(appointment);
             await _context.SaveChangesAsync();
+
+            // Send confirmation email if email provided
+            if (!string.IsNullOrEmpty(req.Email))
+            {
+                var service = req.ServiceId.HasValue
+                    ? await _context.Services.FindAsync(req.ServiceId)
+                    : null;
+
+                var emailDto = new BookingEmailDto(
+                    appointment.AppointmentId,
+                    req.FullName,
+                    req.Email,
+                    clinic.Name,
+                    doctor.FullName,
+                    service?.Name ?? "Khám tổng quát",
+                    req.StartAt,
+                    req.EndAt,
+                    cancelToken,
+                    reschedulingToken
+                );
+
+                // Fire and forget - don't block response
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        await _emailService.SendBookingConfirmationAsync(emailDto);
+                    }
+                    catch
+                    {
+                        /* Log error but don't fail booking */
+                    }
+                });
+            }
 
             return Results.Created($"/appointments/{appointment.AppointmentId}",
                 new ApiResponse<AppointmentResponse>(true, "Created",

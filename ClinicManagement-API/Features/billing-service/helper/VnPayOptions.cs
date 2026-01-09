@@ -5,17 +5,16 @@ using Microsoft.AspNetCore.WebUtilities;
 
 namespace ClinicManagement_API.Features.billing_service.helper;
 
-
 public sealed class VnPayOptions
 {
-    public string Version { get; init; } = "2.1.0";
-    public string TmnCode { get; init; } = default!;
-    public string HashSecret { get; init; } = default!;
-    public string PaymentUrl { get; init; } = default!;
-    public string ReturnUrl { get; init; } = default!;
-    public string IpnUrl { get; init; } = default!;
-    public string Locale { get; init; } = "vn";
-    public string CurrCode { get; init; } = "VND";
+    public string Version { get; set; } = "2.1.0";
+    public string TmnCode { get; set; } = default!;
+    public string HashSecret { get; set; } = default!;
+    public string PaymentUrl { get; set; } = default!;
+    public string ReturnUrl { get; set; } = default!;
+    public string IpnUrl { get; set; } = default!;
+    public string Locale { get; set; } = "vn";
+    public string CurrCode { get; set; } = "VND";
 }
 
 public static class VnPayHelper

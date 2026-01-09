@@ -7,3 +7,6 @@
 *.suo
 .DS_Store
 Thumbs.db
+
+# Environment variables (sensitive)
+.env

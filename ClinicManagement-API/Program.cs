@@ -16,6 +16,7 @@ using ClinicManagement_API.Features.doctor_service.endpoint;
 using ClinicManagement_API.Features.doctor_service.service;
 using ClinicManagement_API.Features.medicine_service.service;
 using ClinicManagement_API.Features.medicine_service.endpoint;
+using ClinicManagement_API.Features.email_service;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -25,14 +26,38 @@ using Microsoft.OpenApi.Models;
 
 var builder = WebApplication.CreateBuilder(args);
 
-
-var connectionString = Environment.GetEnvironmentVariable("CONNECTIONSTRING__CLINIC")
+// Connection string from ENV or appsettings
+var connectionString = Environment.GetEnvironmentVariable("CONNECTIONSTRINGS__CLINIC_DB")
                        ?? builder.Configuration.GetConnectionString("Clinic_DB")
                        ?? throw new Exception("connectionString is missing");
-builder.Services.Configure<JwtSettings>(builder.Configuration.GetSection("JwtSettings"));
-var jwtSettings = builder.Configuration.GetSection("JwtSettings").Get<JwtSettings>()
-                  ?? throw new Exception("Missing valid jwt settings");
-builder.Services.Configure<VnPayOptions>(builder.Configuration.GetSection("VnPay"));
+
+// JWT Settings from ENV
+var jwtKey = Environment.GetEnvironmentVariable("JWTSETTINGS__KEY")
+             ?? builder.Configuration["JwtSettings:Key"] ?? throw new Exception("JWT Key missing");
+var jwtIssuer = Environment.GetEnvironmentVariable("JWTSETTINGS__ISSUER")
+                ?? builder.Configuration["JwtSettings:Issuer"] ?? "ClinicApi";
+var jwtAudience = Environment.GetEnvironmentVariable("JWTSETTINGS__AUDIENCE")
+                  ?? builder.Configuration["JwtSettings:Audience"] ?? "ClinicApiClient";
+var jwtSettings = new JwtSettings { Key = jwtKey, Issuer = jwtIssuer, Audience = jwtAudience };
+builder.Services.AddSingleton(jwtSettings);
+
+// VnPay Options from ENV
+builder.Services.Configure<VnPayOptions>(options =>
+{
+    options.TmnCode = Environment.GetEnvironmentVariable("VNPAY__TMNCODE")
+                      ?? builder.Configuration["VnPay:TmnCode"] ?? "";
+    options.HashSecret = Environment.GetEnvironmentVariable("VNPAY__HASHSECRET")
+                         ?? builder.Configuration["VnPay:HashSecret"] ?? "";
+    options.PaymentUrl = Environment.GetEnvironmentVariable("VNPAY__PAYMENTURL")
+                         ?? builder.Configuration["VnPay:PaymentUrl"] ?? "";
+    options.ReturnUrl = Environment.GetEnvironmentVariable("VNPAY__RETURNURL")
+                        ?? builder.Configuration["VnPay:ReturnUrl"] ?? "";
+    options.IpnUrl = Environment.GetEnvironmentVariable("VNPAY__IPNURL")
+                     ?? builder.Configuration["VnPay:IpnUrl"] ?? "";
+    options.Locale = Environment.GetEnvironmentVariable("VNPAY__LOCALE")
+                     ?? builder.Configuration["VnPay:Locale"] ?? "vn";
+});
+
 builder.Services.AddDbContext<ClinicDbContext>(option => option.UseNpgsql(connectionString));
 builder.Services.AddIdentity<User, Role>(options =>
     {
@@ -74,6 +99,23 @@ builder.Services.AddCors(option => option.AddPolicy("FE",
     policy => policy.WithOrigins("http://localhost:3000", "http://localhost:3001")
         .AllowAnyHeader().AllowAnyMethod().AllowCredentials()));
 
+// FluentEmail configuration (from ENV or appsettings)
+var smtpHost = Environment.GetEnvironmentVariable("EMAIL__SMTPHOST")
+               ?? builder.Configuration["Email:SmtpHost"] ?? "smtp.gmail.com";
+var smtpPort = int.Parse(Environment.GetEnvironmentVariable("EMAIL__SMTPPORT")
+                         ?? builder.Configuration["Email:SmtpPort"] ?? "587");
+var smtpUser = Environment.GetEnvironmentVariable("EMAIL__USERNAME")
+               ?? builder.Configuration["Email:Username"] ?? "";
+var smtpPass = Environment.GetEnvironmentVariable("EMAIL__PASSWORD")
+               ?? builder.Configuration["Email:Password"] ?? "";
+var fromEmail = Environment.GetEnvironmentVariable("EMAIL__FROMEMAIL")
+                ?? builder.Configuration["Email:FromEmail"] ?? "noreply@clinic.com";
+var fromName = Environment.GetEnvironmentVariable("EMAIL__FROMNAME")
+               ?? builder.Configuration["Email:FromName"] ?? "Clinic";
+
+builder.Services
+    .AddFluentEmail(fromEmail, fromName)
+    .AddSmtpSender(smtpHost, smtpPort, smtpUser, smtpPass);
 
 // DI
 builder.Services.AddScoped<IAdminService, AdminService>();
@@ -87,6 +129,7 @@ builder.Services.AddScoped<IReceptionistService, ReceptionistService>();
 builder.Services.AddScoped<IBillingService, BillingService>();
 builder.Services.AddScoped<IDoctorPracticeService, DoctorPracticeService>();
 builder.Services.AddScoped<IMedicineService, MedicineService>();
+builder.Services.AddScoped<IBookingEmailService, BookingEmailService>();
 builder.Services.AddTransient<JwtGenerator>();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>
