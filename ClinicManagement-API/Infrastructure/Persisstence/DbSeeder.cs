@@ -464,13 +464,12 @@ public static class DbSeeder
                 });
             }
 
-            // Saturday: 8:00 - 12:00 only
             availabilities.Add(new DoctorAvailability
             {
                 AvailabilityId = Guid.NewGuid(),
                 ClinicId = doctor.ClinicId,
                 DoctorId = doctor.DoctorId,
-                DayOfWeek = 6, // Saturday
+                DayOfWeek = 6,
                 StartTime = new TimeSpan(8, 0, 0),
                 EndTime = new TimeSpan(12, 0, 0),
                 SlotSizeMin = 30,

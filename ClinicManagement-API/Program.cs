@@ -16,7 +16,10 @@ using ClinicManagement_API.Features.doctor_service.endpoint;
 using ClinicManagement_API.Features.doctor_service.service;
 using ClinicManagement_API.Features.medicine_service.service;
 using ClinicManagement_API.Features.medicine_service.endpoint;
+using ClinicManagement_API.Features.admin_service.service;
+using ClinicManagement_API.Features.admin_service.endpoint;
 using ClinicManagement_API.Features.email_service;
+using ClinicManagement_API.Domains.Enums;
 using DotNetEnv;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
@@ -103,7 +106,17 @@ builder.Services.AddAuthentication(options =>
             ClockSkew = TimeSpan.Zero
         };
     });
-builder.Services.AddAuthorization();
+builder.Services.AddAuthorization(options =>
+{
+    options.AddPolicy("AdminOnly", policy => policy.RequireRole(AppRoles.Admin));
+    options.AddPolicy("DoctorOnly", policy => policy.RequireRole(AppRoles.Doctor));
+    options.AddPolicy("ReceptionistOnly", policy => policy.RequireRole(AppRoles.Receptionist));
+    options.AddPolicy("PatientOnly", policy => policy.RequireRole(AppRoles.Patient));
+    options.AddPolicy("StaffOnly",
+        policy => policy.RequireRole(AppRoles.Admin, AppRoles.Doctor, AppRoles.Receptionist));
+    options.AddPolicy("DoctorOrAdmin", policy => policy.RequireRole(AppRoles.Admin, AppRoles.Doctor));
+    options.AddPolicy("ReceptionistOrAdmin", policy => policy.RequireRole(AppRoles.Admin, AppRoles.Receptionist));
+});
 builder.Services.AddCors(option => option.AddPolicy("FE",
     policy => policy.WithOrigins("http://localhost:3000", "http://localhost:3001")
         .AllowAnyHeader().AllowAnyMethod().AllowCredentials()));
@@ -142,6 +155,8 @@ builder.Services.AddScoped<IReceptionistService, ReceptionistService>();
 builder.Services.AddScoped<IBillingService, BillingService>();
 builder.Services.AddScoped<IDoctorPracticeService, DoctorPracticeService>();
 builder.Services.AddScoped<IMedicineService, MedicineService>();
+builder.Services.AddScoped<IAdminReportService, AdminReportService>();
+builder.Services.AddScoped<IReviewService, ReviewService>();
 builder.Services.AddScoped<IBookingEmailService, BookingEmailService>();
 builder.Services.AddTransient<JwtGenerator>();
 builder.Services.AddEndpointsApiExplorer();
@@ -200,6 +215,7 @@ app.MapReceptionistEndpoint();
 app.MapDoctorPracticeEndpoint();
 app.MapMedicineEndpoints();
 app.MapBillingEndpoint();
+app.MapAdminReportEndpoint();
 
 using (var scope = app.Services.CreateScope())
 {

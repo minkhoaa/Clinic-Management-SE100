@@ -38,6 +38,7 @@ public class ClinicDbContext : IdentityDbContext<User, Role, Guid>
     public DbSet<BillItem> BillItems => Set<BillItem>();
     public DbSet<Medicine> Medicines => Set<Medicine>();
     public DbSet<PrescriptionTemplateMedicine> PrescriptionTemplateMedicines => Set<PrescriptionTemplateMedicine>();
+    public DbSet<Review> Reviews => Set<Review>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -346,6 +347,36 @@ public class ClinicDbContext : IdentityDbContext<User, Role, Guid>
                 .WithMany(m => m.PrescriptionTemplateMedicines)
                 .HasForeignKey(x => x.MedicineId)
                 .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // Review configuration
+        modelBuilder.Entity<Review>(e =>
+        {
+            e.ToTable("Reviews");
+            e.HasKey(x => x.ReviewId);
+            e.Property(x => x.Rating).IsRequired();
+            e.Property(x => x.Comment).HasMaxLength(1000);
+            e.HasIndex(x => x.AppointmentId).IsUnique(); // One review per appointment
+
+            e.HasOne(x => x.Appointment)
+                .WithMany()
+                .HasForeignKey(x => x.AppointmentId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            e.HasOne(x => x.Patient)
+                .WithMany()
+                .HasForeignKey(x => x.PatientId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            e.HasOne(x => x.Doctor)
+                .WithMany()
+                .HasForeignKey(x => x.DoctorId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            e.HasOne(x => x.Clinic)
+                .WithMany()
+                .HasForeignKey(x => x.ClinicId)
+                .OnDelete(DeleteBehavior.SetNull);
         });
     }
 }

@@ -8,7 +8,9 @@ public static class ReceptionistEndpoint
 {
     public static void MapReceptionistEndpoint(this IEndpointRouteBuilder route)
     {
-        var receptionist = route.MapGroup("/api/receptionist").WithTags("Receptionist Dashboard");
+        var receptionist = route.MapGroup("/api/receptionist")
+            .WithTags("Receptionist Dashboard")
+            .RequireAuthorization("ReceptionistOrAdmin");
 
         // Dashboard
         receptionist.MapGet("/dashboard/stats", ReceptionistHandler.GetDashboardStats);

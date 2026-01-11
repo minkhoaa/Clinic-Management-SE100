@@ -8,7 +8,7 @@ public static class DoctorPracticeEndpoint
     {
         var doctor = route.MapGroup("/api/doctor")
             .WithTags("Doctor Practice")
-            .RequireAuthorization();
+            .RequireAuthorization("DoctorOnly");
 
         // Dashboard
         doctor.MapGet("/dashboard/stats", DoctorPracticeHandler.GetDashboardStats);

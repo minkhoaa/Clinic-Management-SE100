@@ -6,7 +6,9 @@ public static class BillingEndpoint
 {
     public static void MapBillingEndpoint(this IEndpointRouteBuilder route)
     {
-        var billing = route.MapGroup("/api/receptionist").WithTags("Billing");
+        var billing = route.MapGroup("/api/receptionist")
+            .WithTags("Billing")
+            .RequireAuthorization("ReceptionistOrAdmin");
 
         // Bills CRUD
         billing.MapGet("/bills", BillingHandler.GetBills);
@@ -18,9 +20,10 @@ public static class BillingEndpoint
         // Stats
         billing.MapGet("/billing/stats", BillingHandler.GetBillingStats);
 
+        // VNPay endpoints - no auth required as these are callbacks from VNPay
         var vnpay = route.MapGroup("/api/vnpay").WithTags("VnPay");
-        vnpay.MapPost("/create", BillingHandler.CreatePaymentUrl);
-        vnpay.MapGet("/return", BillingHandler.ReturnUrl); // GET for redirect
-        vnpay.MapGet("/ipn", BillingHandler.IpnUrl); // GET for callback
+        vnpay.MapPost("/create", BillingHandler.CreatePaymentUrl).RequireAuthorization("ReceptionistOrAdmin");
+        vnpay.MapGet("/return", BillingHandler.ReturnUrl); // No auth - VNPay redirect
+        vnpay.MapGet("/ipn", BillingHandler.IpnUrl); // No auth - VNPay IPN callback
     }
 }

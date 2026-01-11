@@ -7,7 +7,8 @@ public static class MedicineEndpoint
     public static void MapMedicineEndpoints(this IEndpointRouteBuilder app)
     {
         var medicines = app.MapGroup("/api/medicines")
-            .RequireAuthorization();
+            .WithTags("Medicines Management")
+            .RequireAuthorization("StaffOnly");
 
         medicines.MapGet("", MedicineHandler.GetMedicines);
         medicines.MapPost("", MedicineHandler.CreateMedicine);

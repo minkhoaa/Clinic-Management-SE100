@@ -6,11 +6,12 @@ public static class ServiceEndpoint
 {
     public static void MapServiceEndpoint(this IEndpointRouteBuilder route)
     {
-        var app = route.MapGroup("/api/admin/service").WithTags("Services Management");
+        var app = route.MapGroup("/api/admin/service")
+            .WithTags("Services Management")
+            .RequireAuthorization("AdminOnly");
         app.MapPost("/", AdminHandler.CreateService);
         app.MapPut("/{serviceId:guid}", AdminHandler.UpdateService);
         app.MapDelete("/{serviceId:guid}", AdminHandler.DeleteService);
         app.MapGet("/", AdminHandler.GetAllServices);
-        
     }
 }

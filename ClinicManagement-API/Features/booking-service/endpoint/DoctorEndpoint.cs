@@ -10,7 +10,9 @@ public static class DoctorEndpoint
 {
     public static void MapDoctorEndpoint(this IEndpointRouteBuilder route)
     {
-        var app = route.MapGroup("/api/admin/doctor").WithTags("Doctors Management");
+        var app = route.MapGroup("/api/admin/doctor")
+            .WithTags("Doctors Management")
+            .RequireAuthorization("AdminOnly");
         app.MapPost("/", AdminHandler.CreateDoctor);
         app.MapPut("/{doctorId:guid}", AdminHandler.UpdateDoctor);
         app.MapDelete("/{doctorId:guid}", AdminHandler.DeleteDoctor);
@@ -23,11 +25,12 @@ public static class DoctorEndpoint
             var timeOffs = await context.DoctorTimeOffs
                 .AsNoTracking()
                 .Where(t => t.DoctorId == doctorId)
-                .Select(t => new DoctorTimeOffDto(t.TimeOffId, t.ClinicId, t.DoctorId, t.StartAt, t.EndAt, t.Reason, t.Clinic, t.Doctor))
+                .Select(t => new DoctorTimeOffDto(t.TimeOffId, t.ClinicId, t.DoctorId, t.StartAt, t.EndAt, t.Reason,
+                    t.Clinic, t.Doctor))
                 .ToListAsync();
-            return Results.Ok(new ApiResponse<List<DoctorTimeOffDto>>(true, "Doctor time-offs retrieved successfully", timeOffs));
+            return Results.Ok(new ApiResponse<List<DoctorTimeOffDto>>(true, "Doctor time-offs retrieved successfully",
+                timeOffs));
         });
         app.MapDelete("/time-off/{timeOffId:guid}", AdminHandler.DeleteDoctorTimeOff);
     }
-
 }
