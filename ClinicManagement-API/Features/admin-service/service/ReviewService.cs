@@ -9,7 +9,7 @@ namespace ClinicManagement_API.Features.admin_service.service;
 
 public interface IReviewService
 {
-    Task<IResult> CreateReviewAsync(Guid patientId, CreateReviewRequest request);
+    Task<IResult> CreateReviewAsync(Guid userId, CreateReviewRequest request);
     Task<IResult> GetReviewStatsAsync();
 }
 
@@ -22,12 +22,21 @@ public class ReviewService : IReviewService
         _context = context;
     }
 
-    public async Task<IResult> CreateReviewAsync(Guid patientId, CreateReviewRequest request)
+    public async Task<IResult> CreateReviewAsync(Guid userId, CreateReviewRequest request)
     {
         // Validate rating
         if (request.Rating < 1 || request.Rating > 5)
         {
             return Results.BadRequest(new ApiResponse<object>(false, "Rating must be between 1 and 5", null));
+        }
+
+        // Find patient by userId (userId from token ≠ patientId)
+        var patient = await _context.Patients.AsNoTracking()
+            .FirstOrDefaultAsync(p => p.UserId == userId);
+
+        if (patient == null)
+        {
+            return Results.NotFound(new ApiResponse<object>(false, "Patient profile not found", null));
         }
 
         // Check if appointment exists and belongs to patient
@@ -40,15 +49,18 @@ public class ReviewService : IReviewService
             return Results.NotFound(new ApiResponse<object>(false, "Appointment not found", null));
         }
 
-        if (appointment.PatientId != patientId)
+        // Use patient.PatientId (not userId) for comparison
+        if (appointment.PatientId != patient.PatientId)
         {
-            return Results.BadRequest(new ApiResponse<object>(false, "You can only review your own appointments", null));
+            return Results.BadRequest(new ApiResponse<object>(false, "You can only review your own appointments",
+                null));
         }
 
         // Check if appointment is completed
         if (appointment.Status != AppointmentStatus.Completed)
         {
-            return Results.BadRequest(new ApiResponse<object>(false, "You can only review completed appointments", null));
+            return Results.BadRequest(
+                new ApiResponse<object>(false, "You can only review completed appointments", null));
         }
 
         // Check if already reviewed
@@ -57,13 +69,14 @@ public class ReviewService : IReviewService
 
         if (existingReview)
         {
-            return Results.BadRequest(new ApiResponse<object>(false, "This appointment has already been reviewed", null));
+            return Results.BadRequest(
+                new ApiResponse<object>(false, "This appointment has already been reviewed", null));
         }
 
         var review = new Review
         {
             AppointmentId = request.AppointmentId,
-            PatientId = patientId,
+            PatientId = patient.PatientId, // Use patient.PatientId, not userId
             DoctorId = appointment.DoctorId,
             ClinicId = appointment.ClinicId,
             Rating = request.Rating,
@@ -82,7 +95,7 @@ public class ReviewService : IReviewService
             review.CreatedAt
         );
 
-        return Results.Created($"/api/patient/reviews/{review.ReviewId}", 
+        return Results.Created($"/api/patient/reviews/{review.ReviewId}",
             new ApiResponse<ReviewDto>(true, "Review created successfully", result));
     }
 
