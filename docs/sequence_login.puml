@@ -1,0 +1,95 @@
+@startuml
+
+' ========== THESIS STANDARD CONFIGURATION ==========
+skinparam handwritten false
+skinparam shadowing false
+skinparam monochrome true
+skinparam responseMessageBelowArrow true
+skinparam defaultFontName Arial
+skinparam defaultFontSize 11
+
+skinparam sequence {
+    LifeLineBorderColor Black
+    LifeLineBackgroundColor White
+    ParticipantBorderColor Black
+    ParticipantBackgroundColor White
+    ActorBorderColor Black
+    ActorBackgroundColor White
+    ArrowColor Black
+}
+
+title Sequence Diagram: Đăng nhập hệ thống
+
+' ========== PARTICIPANTS ==========
+actor "Người dùng" as User
+boundary "LoginPage" as UI
+control "AuthController" as Controller
+entity "AuthService" as Service
+entity "UserManager" as UserManager
+entity "JwtGenerator" as JWT
+database "Database" as DB
+
+autonumber
+
+' ========== LOGIN FLOW ==========
+User -> UI : Nhập tài khoản và mật khẩu
+activate UI
+
+UI -> Controller : POST /api/auth/login
+activate Controller
+Controller -> Service : LoginAsync(username, password)
+activate Service
+
+Service -> UserManager : FindByNameAsync(username)
+activate UserManager
+UserManager -> DB : SELECT * FROM Users WHERE UserName = ?
+activate DB
+DB --> UserManager : User data
+deactivate DB
+UserManager --> Service : User object
+deactivate UserManager
+
+alt Tài khoản không tồn tại
+    Service --> Controller : 401 Unauthorized
+    Controller --> UI : Tài khoản không tồn tại
+    UI --> User : Thông báo lỗi
+    
+else Tài khoản tồn tại
+    Service -> UserManager : CheckPasswordAsync(user, password)
+    activate UserManager
+    UserManager --> Service : Password valid/invalid
+    deactivate UserManager
+    
+    alt Mật khẩu sai
+        Service --> Controller : 401 Unauthorized
+        Controller --> UI : Mật khẩu không chính xác
+        UI --> User : Thông báo lỗi
+        
+    else Mật khẩu đúng
+        Service -> UserManager : GetRolesAsync(user)
+        activate UserManager
+        UserManager -> DB : SELECT * FROM UserRoles WHERE UserId = ?
+        activate DB
+        DB --> UserManager : User roles
+        deactivate DB
+        UserManager --> Service : List<string> roles
+        deactivate UserManager
+        
+        Service -> JWT : GenerateToken(user, roles)
+        activate JWT
+        JWT -> JWT : Create claims + sign JWT
+        JWT --> Service : Access Token
+        deactivate JWT
+        
+        Service --> Controller : LoginResponse (token, role, userId)
+        deactivate Service
+        Controller --> UI : 200 OK (token)
+        deactivate Controller
+        UI -> UI : Lưu token vào localStorage
+        UI --> User : Đăng nhập thành công, chuyển trang
+    end
+end
+
+deactivate UI
+
+@enduml

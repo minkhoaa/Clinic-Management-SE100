@@ -1,0 +1,74 @@
+@startuml
+
+' ========== THESIS STANDARD CONFIGURATION ==========
+skinparam handwritten false
+skinparam shadowing false
+skinparam packageStyle rectangle
+skinparam defaultFontName Arial
+skinparam defaultFontSize 12
+
+skinparam usecase {
+    BackgroundColor White
+    BorderColor Black
+    ArrowColor Black
+}
+
+skinparam actor {
+    BorderColor Black
+    BackgroundColor White
+}
+
+skinparam rectangle {
+    BorderColor Black
+    BackgroundColor White
+}
+
+left to right direction
+
+title Sơ đồ Use Case - Module Thanh toán
+
+' ========== ACTORS ==========
+actor "Lễ tân" as Cashier
+actor "Bệnh nhân" as Patient
+actor "VNPay" as VNPay <<system>>
+
+' ========== SYSTEM BOUNDARY ==========
+rectangle "Module Thanh toán" {
+    
+    usecase "Xem danh sách hóa đơn" as UC_ListBill
+    usecase "Xem chi tiết hóa đơn" as UC_ViewBill
+    usecase "Tạo hóa đơn" as UC_CreateBill
+    usecase "Thêm dịch vụ nha khoa" as UC_AddService
+    usecase "Thêm thuốc" as UC_AddMedicine
+    usecase "Ghi số răng điều trị" as UC_ToothNumber
+    usecase "Áp dụng giảm giá" as UC_Discount
+    usecase "Thanh toán tiền mặt" as UC_PayCash
+    usecase "Thanh toán VNPay" as UC_PayVNPay
+    usecase "Xử lý callback thanh toán" as UC_Callback
+    usecase "Hủy hóa đơn" as UC_CancelBill
+    usecase "Xem thống kê thanh toán" as UC_Stats
+}
+
+' ========== ASSOCIATIONS ==========
+
+Cashier --> UC_ListBill
+Cashier --> UC_ViewBill
+Cashier --> UC_CreateBill
+Cashier --> UC_PayCash
+Cashier --> UC_PayVNPay
+Cashier --> UC_CancelBill
+Cashier --> UC_Stats
+
+Patient --> UC_PayVNPay
+
+VNPay --> UC_Callback
+
+' ========== RELATIONSHIPS ==========
+
+UC_CreateBill ..> UC_AddService : <<include>>
+UC_CreateBill ..> UC_AddMedicine : <<extend>>
+UC_AddService ..> UC_ToothNumber : <<include>>
+UC_CreateBill ..> UC_Discount : <<extend>>
+UC_PayVNPay ..> UC_Callback : <<include>>
+
+@enduml

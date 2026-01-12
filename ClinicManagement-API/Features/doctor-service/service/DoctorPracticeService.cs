@@ -2,6 +2,7 @@ using ClinicManagement_API.Contracts;
 using ClinicManagement_API.Domains.Entities;
 using ClinicManagement_API.Domains.Enums;
 using ClinicManagement_API.Features.doctor_service.dto;
+using ClinicManagement_API.Features.audit_service.service;
 using ClinicManagement_API.Infrastructure.Persisstence;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
@@ -28,10 +29,12 @@ public interface IDoctorPracticeService
 public class DoctorPracticeService : IDoctorPracticeService
 {
     private readonly ClinicDbContext _context;
+    private readonly IAuditService _auditService;
 
-    public DoctorPracticeService(ClinicDbContext context)
+    public DoctorPracticeService(ClinicDbContext context, IAuditService auditService)
     {
         _context = context;
+        _auditService = auditService;
     }
 
     private async Task<Guid?> GetDoctorIdFromUser(ClaimsPrincipal user)
@@ -474,6 +477,18 @@ public class DoctorPracticeService : IDoctorPracticeService
         _context.MedicalRecords.Add(record);
         await _context.SaveChangesAsync();
 
+        // Audit log for created medical record
+        await _auditService.LogAsync(
+            doctor.ClinicId,
+            AuditEntityType.MedicalRecord,
+            record.RecordId,
+            AuditAction.Created,
+            user,
+            null,
+            new { record.PatientId, record.Title, record.Diagnosis, record.Treatment },
+            $"Tạo hồ sơ bệnh án: {record.Title}"
+        );
+
         return Results.Created($"/api/doctor/medical-records/{record.RecordId}",
             new ApiResponse<CreateMedicalRecordResponse>(true, "Medical record created",
                 new CreateMedicalRecordResponse(record.RecordId, record.CreatedAt)));
@@ -494,6 +509,18 @@ public class DoctorPracticeService : IDoctorPracticeService
         if (record.DoctorId != doctorId.Value)
             return Results.Forbid();
 
+        // Save old values for audit
+        var oldValues = new
+        {
+            record.PatientId,
+            record.AppointmentId,
+            record.Title,
+            record.Diagnosis,
+            record.Treatment,
+            record.Prescription,
+            record.Notes
+        };
+
         record.AppointmentId = request.AppointmentId;
         record.PatientId = request.PatientId;
         record.Title = request.Title;
@@ -504,6 +531,21 @@ public class DoctorPracticeService : IDoctorPracticeService
         record.UpdatedAt = DateTime.UtcNow;
 
         await _context.SaveChangesAsync();
+
+        // Audit log for updated medical record
+        await _auditService.LogAsync(
+            record.ClinicId,
+            AuditEntityType.MedicalRecord,
+            record.RecordId,
+            AuditAction.Updated,
+            user,
+            oldValues,
+            new
+            {
+                record.PatientId, record.Title, record.Diagnosis, record.Treatment, record.Prescription, record.Notes
+            },
+            $"Cập nhật hồ sơ bệnh án: {record.Title}"
+        );
 
         return Results.Ok(new ApiResponse<UpdateMedicalRecordResponse>(true, "Medical record updated",
             new UpdateMedicalRecordResponse(record.RecordId, record.UpdatedAt)));

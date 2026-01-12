@@ -128,6 +128,28 @@ public class BillingService : IBillingService
         var patientExists = await _context.Patients.AnyAsync(p => p.PatientId == request.PatientId);
         if (!patientExists)
             return Results.NotFound(new ApiResponse<object>(false, "Patient not found", null));
+
+        // Validate stock for medicine items
+        var medicineItems = request.Items.Where(i => i.Type == BillItemType.Medicine && i.MedicineId.HasValue).ToList();
+        if (medicineItems.Any())
+        {
+            var medicineIds = medicineItems.Select(i => i.MedicineId!.Value).Distinct().ToList();
+            var medicines = await _context.Medicines
+                .Where(m => medicineIds.Contains(m.MedicineId))
+                .ToDictionaryAsync(m => m.MedicineId);
+
+            foreach (var item in medicineItems)
+            {
+                if (!medicines.TryGetValue(item.MedicineId!.Value, out var medicine))
+                    return Results.NotFound(new ApiResponse<object>(false, $"Medicine not found: {item.Name}", null));
+
+                if (medicine.StockQuantity < item.Quantity)
+                    return Results.BadRequest(new ApiResponse<object>(false,
+                        $"Thuốc '{medicine.Name}' không đủ tồn kho. Còn: {medicine.StockQuantity}, Yêu cầu: {item.Quantity}",
+                        null));
+            }
+        }
+
         var invoiceNumber = await GenerateInvoiceNumber(request.ClinicId);
         var subtotal = request.Items.Sum(i => i.UnitPrice * i.Quantity);
         var discount = request.Discount ?? 0;
@@ -191,6 +213,30 @@ public class BillingService : IBillingService
             bill.ChangeAmount = request.Amount - bill.TotalAmount;
             bill.PaymentMethod = request.PaymentMethod;
             bill.Notes = request.Notes;
+
+            // Deduct stock for medicine items
+            var billItems = await _context.BillItems
+                .Where(bi => bi.BillId == id && bi.MedicineId.HasValue)
+                .ToListAsync();
+
+            if (billItems.Any())
+            {
+                var medicineIds = billItems.Select(bi => bi.MedicineId!.Value).Distinct().ToList();
+                var medicines = await _context.Medicines
+                    .Where(m => medicineIds.Contains(m.MedicineId))
+                    .ToListAsync();
+
+                foreach (var item in billItems)
+                {
+                    var medicine = medicines.FirstOrDefault(m => m.MedicineId == item.MedicineId);
+                    if (medicine != null)
+                    {
+                        medicine.StockQuantity -= item.Quantity;
+                        medicine.UpdatedAt = DateTime.UtcNow;
+                    }
+                }
+            }
+
             await _context.SaveChangesAsync();
             await transaction.CommitAsync();
             return Results.Ok(new ApiResponse<object>(true, "Bill paid successfully", null));
@@ -372,6 +418,30 @@ public class BillingService : IBillingService
             bill.PaymentDate = DateTime.UtcNow;
             bill.Notes = $"VNPay IPN Transaction: {transactionNo}";
             bill.UpdatedAt = DateTime.UtcNow;
+
+            // Deduct stock for medicine items
+            var billItems = await _context.BillItems
+                .Where(bi => bi.BillId == billId && bi.MedicineId.HasValue)
+                .ToListAsync();
+
+            if (billItems.Any())
+            {
+                var medicineIds = billItems.Select(bi => bi.MedicineId!.Value).Distinct().ToList();
+                var medicines = await _context.Medicines
+                    .Where(m => medicineIds.Contains(m.MedicineId))
+                    .ToListAsync();
+
+                foreach (var item in billItems)
+                {
+                    var medicine = medicines.FirstOrDefault(m => m.MedicineId == item.MedicineId);
+                    if (medicine != null)
+                    {
+                        medicine.StockQuantity -= item.Quantity;
+                        medicine.UpdatedAt = DateTime.UtcNow;
+                    }
+                }
+            }
+
             await _context.SaveChangesAsync();
             await transaction.CommitAsync();
             return Results.Json(new { RspCode = "00", Message = "Confirm Success" });

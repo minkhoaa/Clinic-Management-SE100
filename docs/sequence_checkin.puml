@@ -1,0 +1,108 @@
+@startuml
+
+' ========== THESIS STANDARD CONFIGURATION ==========
+skinparam handwritten false
+skinparam shadowing false
+skinparam monochrome true
+skinparam responseMessageBelowArrow true
+skinparam defaultFontName Arial
+skinparam defaultFontSize 11
+
+skinparam sequence {
+    LifeLineBorderColor Black
+    LifeLineBackgroundColor White
+    ParticipantBorderColor Black
+    ParticipantBackgroundColor White
+    ActorBorderColor Black
+    ActorBackgroundColor White
+    ArrowColor Black
+}
+
+title Sequence Diagram: Tiếp nhận và Check-in bệnh nhân
+
+' ========== PARTICIPANTS ==========
+actor "Lễ tân" as Receptionist
+boundary "ReceptionPage" as UI
+control "ReceptionistController" as Controller
+entity "ReceptionistService" as Service
+database "Database" as DB
+
+autonumber
+
+' ========== MAIN FLOW ==========
+Receptionist -> UI : Xem danh sách lịch hẹn hôm nay
+activate UI
+
+UI -> Controller : GET /api/receptionist/appointments?date={today}
+activate Controller
+Controller -> Service : GetAppointmentsAsync(date)
+activate Service
+Service -> DB : SELECT * FROM Appointments WHERE StartAt = today
+activate DB
+DB --> Service : Danh sách lịch hẹn
+deactivate DB
+Service --> Controller : List<AppointmentDto>
+deactivate Service
+Controller --> UI : 200 OK (appointments)
+deactivate Controller
+
+UI --> Receptionist : Hiển thị danh sách lịch hẹn
+
+Receptionist -> UI : Chọn bệnh nhân để check-in
+UI -> Controller : POST /api/receptionist/appointments/{id}/checkin
+activate Controller
+Controller -> Service : CheckinAppointmentAsync(id)
+activate Service
+
+Service -> DB : SELECT * FROM Appointments WHERE Id = ?
+activate DB
+DB --> Service : Appointment
+deactivate DB
+
+alt Appointment không tồn tại
+    Service --> Controller : 404 Not Found
+    Controller --> UI : Không tìm thấy lịch hẹn
+    UI --> Receptionist : Thông báo lỗi
+    
+else Appointment đã bị hủy
+    Service --> Controller : 400 Bad Request
+    Controller --> UI : Không thể check-in lịch đã hủy
+    UI --> Receptionist : Thông báo lỗi
+    
+else Appointment hợp lệ
+    Service -> DB : UPDATE Appointments SET Status = 'CheckedIn'
+    activate DB
+    DB --> Service : Updated
+    deactivate DB
+    
+    Service --> Controller : ActionResultDto
+    deactivate Service
+    Controller --> UI : 200 OK
+    deactivate Controller
+    UI --> Receptionist : Check-in thành công
+end
+
+deactivate UI
+
+== Cập nhật hàng đợi ==
+
+Receptionist -> UI : Xem hàng đợi
+activate UI
+
+UI -> Controller : GET /api/receptionist/queue
+activate Controller
+Controller -> Service : GetQueueAsync()
+activate Service
+Service -> DB : SELECT * FROM Appointments WHERE Status IN ('CheckedIn', 'InProgress')
+activate DB
+DB --> Service : Queue items
+deactivate DB
+Service --> Controller : List<QueueItemDto>
+deactivate Service
+Controller --> UI : 200 OK (queue)
+deactivate Controller
+
+UI --> Receptionist : Hiển thị hàng đợi bệnh nhân
+deactivate UI
+
+@enduml

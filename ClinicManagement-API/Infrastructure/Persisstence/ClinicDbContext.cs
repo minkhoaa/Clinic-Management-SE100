@@ -39,6 +39,8 @@ public class ClinicDbContext : IdentityDbContext<User, Role, Guid>
     public DbSet<Medicine> Medicines => Set<Medicine>();
     public DbSet<PrescriptionTemplateMedicine> PrescriptionTemplateMedicines => Set<PrescriptionTemplateMedicine>();
     public DbSet<Review> Reviews => Set<Review>();
+    public DbSet<ToothRecord> ToothRecords => Set<ToothRecord>();
+    public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -376,6 +378,67 @@ public class ClinicDbContext : IdentityDbContext<User, Role, Guid>
             e.HasOne(x => x.Clinic)
                 .WithMany()
                 .HasForeignKey(x => x.ClinicId)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<ToothRecord>(e =>
+        {
+            e.ToTable("ToothRecords");
+            e.HasKey(x => x.ToothRecordId);
+
+            // Only one record per patient per tooth
+            e.HasIndex(x => new { x.PatientId, x.ToothNumber }).IsUnique();
+
+            e.Property(x => x.ToothNumber).IsRequired();
+            e.Property(x => x.Status).IsRequired();
+            e.Property(x => x.Notes).HasMaxLength(500);
+            e.Property(x => x.LastTreatment).HasMaxLength(200);
+
+            e.HasOne(x => x.Patient)
+                .WithMany()
+                .HasForeignKey(x => x.PatientId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            e.HasOne(x => x.Clinic)
+                .WithMany()
+                .HasForeignKey(x => x.ClinicId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            e.HasOne(x => x.LastMedicalRecord)
+                .WithMany()
+                .HasForeignKey(x => x.LastMedicalRecordId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            e.HasOne(x => x.LastTreatedByDoctor)
+                .WithMany()
+                .HasForeignKey(x => x.LastTreatedByDoctorId)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<AuditLog>(e =>
+        {
+            e.ToTable("AuditLogs");
+            e.HasKey(x => x.AuditLogId);
+
+            // Index for fast querying by entity
+            e.HasIndex(x => new { x.EntityType, x.EntityId });
+            e.HasIndex(x => x.CreatedAt);
+            e.HasIndex(x => x.UserId);
+
+            e.Property(x => x.UserName).HasMaxLength(150);
+            e.Property(x => x.UserRole).HasMaxLength(50);
+            e.Property(x => x.ChangesSummary).HasMaxLength(500);
+            e.Property(x => x.IpAddress).HasMaxLength(50);
+            e.Property(x => x.UserAgent).HasMaxLength(500);
+
+            e.HasOne(x => x.Clinic)
+                .WithMany()
+                .HasForeignKey(x => x.ClinicId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            e.HasOne(x => x.User)
+                .WithMany()
+                .HasForeignKey(x => x.UserId)
                 .OnDelete(DeleteBehavior.SetNull);
         });
     }

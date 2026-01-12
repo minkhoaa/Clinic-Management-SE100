@@ -1,0 +1,108 @@
+@startuml
+
+' ========== THESIS STANDARD CONFIGURATION ==========
+skinparam handwritten false
+skinparam shadowing false
+skinparam monochrome true
+skinparam defaultFontName Arial
+skinparam defaultFontSize 11
+
+skinparam activity {
+    StartColor Black
+    EndColor Black
+    BackgroundColor White
+    BorderColor Black
+    ArrowColor Black
+    DiamondBorderColor Black
+    DiamondBackgroundColor White
+}
+
+skinparam swimlane {
+    BorderColor Black
+    TitleBackgroundColor White
+    TitleFontColor Black
+}
+
+title Activity Diagram: Quy trình khám và điều trị nha khoa
+
+|Bệnh nhân|
+start
+:Đến phòng khám theo lịch hẹn;
+
+|Lễ tân|
+:Tra cứu lịch hẹn theo tên/SĐT;
+
+if (Tìm thấy lịch hẹn?) then ([Có])
+    :Xác nhận thông tin bệnh nhân;
+    :Thực hiện Check-in;
+else ([Không])
+    :Tạo lịch hẹn Walk-in mới;
+endif
+
+|Hệ thống|
+:Cập nhật trạng thái: CheckedIn;
+:Thêm bệnh nhân vào hàng đợi;
+
+|Nha sĩ|
+:Xem hàng đợi bệnh nhân;
+:Gọi bệnh nhân tiếp theo;
+:Bắt đầu khám;
+
+|Hệ thống|
+:Cập nhật trạng thái: InProgress;
+:Ghi nhận thời gian bắt đầu khám;
+
+|Nha sĩ|
+:Xem lịch sử khám của bệnh nhân;
+:Khám tổng quát tình trạng răng miệng;
+:Chẩn đoán bệnh lý;
+:Ghi nhận số răng cần điều trị;
+:Cập nhật trạng thái từng răng;
+
+if (Cần điều trị ngay?) then ([Có])
+    :Thực hiện điều trị;
+    :Ghi nhận kết quả điều trị;
+else ([Không])
+    :Lên kế hoạch điều trị;
+endif
+
+if (Cần kê đơn thuốc?) then ([Có])
+    :Chọn mẫu đơn thuốc hoặc kê mới;
+    :Chọn thuốc và liều dùng;
+else ([Không])
+endif
+
+:Tạo hồ sơ bệnh án;
+:Nhập chẩn đoán, điều trị, đơn thuốc;
+
+if (Tạo hóa đơn ngay?) then ([Có])
+    :Chọn dịch vụ đã thực hiện;
+    :Chọn thuốc đã kê;
+    
+    |Hệ thống|
+    :Kiểm tra tồn kho thuốc;
+    
+    if (Đủ tồn kho?) then ([Có])
+        :Tạo hóa đơn mới;
+    else ([Không])
+        |Nha sĩ|
+        :Điều chỉnh đơn thuốc;
+        detach
+    endif
+else ([Không])
+endif
+
+|Nha sĩ|
+:Hoàn thành khám;
+
+|Hệ thống|
+:Cập nhật trạng thái: Completed;
+:Ghi nhận thời gian kết thúc;
+:Lưu hồ sơ bệnh án;
+
+|Bệnh nhân|
+:Ra quầy lễ tân thanh toán;
+
+stop
+
+@enduml

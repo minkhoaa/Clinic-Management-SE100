@@ -1,0 +1,72 @@
+@startuml
+
+' ========== THESIS STANDARD CONFIGURATION ==========
+skinparam handwritten false
+skinparam shadowing false
+skinparam packageStyle rectangle
+skinparam defaultFontName Arial
+skinparam defaultFontSize 12
+
+skinparam usecase {
+    BackgroundColor White
+    BorderColor Black
+    ArrowColor Black
+}
+
+skinparam actor {
+    BorderColor Black
+    BackgroundColor White
+}
+
+skinparam rectangle {
+    BorderColor Black
+    BackgroundColor White
+}
+
+left to right direction
+
+title Sơ đồ Use Case - Module Đăng nhập và Xác thực
+
+' ========== ACTORS ==========
+actor "Người dùng" as User
+actor "Bệnh nhân" as Patient
+actor "Nhân viên" as Staff
+
+User <|-- Patient
+User <|-- Staff
+
+' ========== SYSTEM BOUNDARY ==========
+rectangle "Module Đăng nhập và Xác thực" {
+    
+    usecase "Đăng nhập hệ thống" as UC_Login
+    usecase "Đăng xuất hệ thống" as UC_Logout
+    usecase "Xác thực tài khoản" as UC_Authenticate
+    usecase "Phân quyền người dùng" as UC_Authorize
+    usecase "Tạo JWT Token" as UC_CreateToken
+    usecase "Xác thực JWT Token" as UC_VerifyToken
+    usecase "Quên mật khẩu" as UC_ForgotPassword
+    usecase "Đổi mật khẩu" as UC_ChangePassword
+    usecase "Gửi email đặt lại mật khẩu" as UC_SendResetEmail
+    usecase "Đăng ký tài khoản" as UC_Register
+    usecase "Xác nhận email" as UC_VerifyEmail
+}
+
+' ========== ASSOCIATIONS ==========
+
+User --> UC_Login
+User --> UC_Logout
+User --> UC_ForgotPassword
+User --> UC_ChangePassword
+
+Patient --> UC_Register
+
+' ========== RELATIONSHIPS ==========
+
+UC_Login ..> UC_Authenticate : <<include>>
+UC_Login ..> UC_Authorize : <<include>>
+UC_Login ..> UC_CreateToken : <<include>>
+UC_ForgotPassword ..> UC_SendResetEmail : <<include>>
+UC_Register ..> UC_VerifyEmail : <<extend>>
+UC_Logout ..> UC_VerifyToken : <<include>>
+
+@enduml

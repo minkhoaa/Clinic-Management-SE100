@@ -86,3 +86,28 @@ public record AddDoctorTimeOffRequest(Guid ClinicId, Guid DoctorId, DateTime Sta
 
 // Request to update appointment/booking status
 public record UpdateAppointmentStatusRequest(string Status); // confirmed | cancelled
+
+// TimeOff response with affected appointments
+public record TimeOffCreatedResponse(
+    Guid TimeOffId,
+    Guid ClinicId,
+    Guid DoctorId,
+    DateTime StartAt,
+    DateTime EndAt,
+    string? Reason,
+    string ClinicName,
+    string DoctorName,
+    int AffectedAppointmentsCount,
+    List<AffectedAppointmentDto> AffectedAppointments
+);
+
+public record AffectedAppointmentDto(
+    Guid AppointmentId,
+    string PatientName,
+    string? PatientEmail,
+    string? PatientPhone,
+    DateTime StartAt,
+    DateTime EndAt,
+    string Status,
+    bool NotificationSent
+);

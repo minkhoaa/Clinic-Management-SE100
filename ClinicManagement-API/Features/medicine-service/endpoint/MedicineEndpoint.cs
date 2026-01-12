@@ -11,8 +11,10 @@ public static class MedicineEndpoint
             .RequireAuthorization("StaffOnly");
 
         medicines.MapGet("", MedicineHandler.GetMedicines);
+        medicines.MapGet("low-stock", MedicineHandler.GetLowStock);
         medicines.MapPost("", MedicineHandler.CreateMedicine);
         medicines.MapPut("{medicineId:guid}", MedicineHandler.UpdateMedicine);
+        medicines.MapPut("{medicineId:guid}/stock", MedicineHandler.UpdateStock);
         medicines.MapDelete("{medicineId:guid}", MedicineHandler.DeleteMedicine);
     }
 }

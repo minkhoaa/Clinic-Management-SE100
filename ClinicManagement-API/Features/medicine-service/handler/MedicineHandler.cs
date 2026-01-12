@@ -19,4 +19,11 @@ public static class MedicineHandler
 
     public static async Task<IResult> DeleteMedicine(IMedicineService service, ClaimsPrincipal user, Guid medicineId)
         => await service.DeleteMedicineAsync(user, medicineId);
+
+    public static async Task<IResult> GetLowStock(IMedicineService service, ClaimsPrincipal user)
+        => await service.GetLowStockAsync(user);
+
+    public static async Task<IResult> UpdateStock(IMedicineService service, ClaimsPrincipal user, Guid medicineId,
+        UpdateStockRequest request)
+        => await service.UpdateStockAsync(user, medicineId, request);
 }

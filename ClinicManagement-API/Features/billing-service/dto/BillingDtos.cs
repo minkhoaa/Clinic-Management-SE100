@@ -80,6 +80,7 @@ public record CreateBillRequest(
 
 public record CreateBillItemRequest(
     Guid? ServiceId,
+    Guid? MedicineId, // For stock validation
     BillItemType Type,
     string Name,
     int Quantity,

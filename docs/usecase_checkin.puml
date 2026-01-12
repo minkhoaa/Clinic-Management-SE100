@@ -1,0 +1,72 @@
+@startuml
+
+' ========== THESIS STANDARD CONFIGURATION ==========
+skinparam handwritten false
+skinparam shadowing false
+skinparam packageStyle rectangle
+skinparam defaultFontName Arial
+skinparam defaultFontSize 12
+
+skinparam usecase {
+    BackgroundColor White
+    BorderColor Black
+    ArrowColor Black
+}
+
+skinparam actor {
+    BorderColor Black
+    BackgroundColor White
+}
+
+skinparam rectangle {
+    BorderColor Black
+    BackgroundColor White
+}
+
+left to right direction
+
+title Sơ đồ Use Case - Module Tiếp nhận và Check-in
+
+' ========== ACTORS ==========
+actor "Bệnh nhân" as Patient
+actor "Lễ tân" as Receptionist
+
+' ========== SYSTEM BOUNDARY ==========
+rectangle "Module Tiếp nhận và Check-in" {
+    
+    usecase "Xem danh sách lịch hẹn hôm nay" as UC_ViewAppointments
+    usecase "Tìm kiếm lịch hẹn" as UC_SearchAppointment
+    usecase "Thực hiện Check-in" as UC_Checkin
+    usecase "Cập nhật trạng thái lịch hẹn" as UC_UpdateStatus
+    usecase "Thêm bệnh nhân vào hàng đợi" as UC_AddToQueue
+    usecase "Xem hàng đợi bệnh nhân" as UC_ViewQueue
+    usecase "Gọi bệnh nhân tiếp theo" as UC_CallNext
+    usecase "Tạo lịch hẹn Walk-in" as UC_WalkIn
+    usecase "Tạo hồ sơ bệnh nhân mới" as UC_CreatePatient
+    usecase "Xác nhận thông tin bệnh nhân" as UC_VerifyPatient
+    usecase "Đánh dấu No-Show" as UC_MarkNoShow
+}
+
+' ========== ASSOCIATIONS ==========
+
+Receptionist --> UC_ViewAppointments
+Receptionist --> UC_SearchAppointment
+Receptionist --> UC_Checkin
+Receptionist --> UC_ViewQueue
+Receptionist --> UC_CallNext
+Receptionist --> UC_WalkIn
+Receptionist --> UC_MarkNoShow
+
+Patient --> UC_ViewQueue
+
+' ========== RELATIONSHIPS ==========
+
+UC_Checkin ..> UC_VerifyPatient : <<include>>
+UC_Checkin ..> UC_UpdateStatus : <<include>>
+UC_Checkin ..> UC_AddToQueue : <<include>>
+UC_WalkIn ..> UC_CreatePatient : <<extend>>
+UC_WalkIn ..> UC_AddToQueue : <<include>>
+UC_SearchAppointment ..> UC_ViewAppointments : <<extend>>
+UC_CallNext ..> UC_ViewQueue : <<include>>
+
+@enduml

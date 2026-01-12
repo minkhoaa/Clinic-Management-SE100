@@ -19,6 +19,10 @@ using ClinicManagement_API.Features.medicine_service.endpoint;
 using ClinicManagement_API.Features.admin_service.service;
 using ClinicManagement_API.Features.admin_service.endpoint;
 using ClinicManagement_API.Features.email_service;
+using ClinicManagement_API.Features.tooth_record_service.service;
+using ClinicManagement_API.Features.tooth_record_service.endpoint;
+using ClinicManagement_API.Features.audit_service.service;
+using ClinicManagement_API.Features.audit_service.endpoint;
 using ClinicManagement_API.Domains.Enums;
 using DotNetEnv;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -158,6 +162,8 @@ builder.Services.AddScoped<IMedicineService, MedicineService>();
 builder.Services.AddScoped<IAdminReportService, AdminReportService>();
 builder.Services.AddScoped<IReviewService, ReviewService>();
 builder.Services.AddScoped<IBookingEmailService, BookingEmailService>();
+builder.Services.AddScoped<IToothRecordService, ToothRecordService>();
+builder.Services.AddScoped<IAuditService, AuditService>();
 builder.Services.AddTransient<JwtGenerator>();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>
@@ -216,6 +222,8 @@ app.MapDoctorPracticeEndpoint();
 app.MapMedicineEndpoints();
 app.MapBillingEndpoint();
 app.MapAdminReportEndpoint();
+app.MapToothRecordEndpoints();
+app.MapAuditEndpoints();
 
 using (var scope = app.Services.CreateScope())
 {

@@ -13,6 +13,8 @@ public interface IMedicineService
     Task<IResult> CreateMedicineAsync(ClaimsPrincipal user, CreateMedicineRequest request);
     Task<IResult> UpdateMedicineAsync(ClaimsPrincipal user, Guid medicineId, UpdateMedicineRequest request);
     Task<IResult> DeleteMedicineAsync(ClaimsPrincipal user, Guid medicineId);
+    Task<IResult> GetLowStockAsync(ClaimsPrincipal user);
+    Task<IResult> UpdateStockAsync(ClaimsPrincipal user, Guid medicineId, UpdateStockRequest request);
 }
 
 public class MedicineService : IMedicineService
@@ -54,7 +56,11 @@ public class MedicineService : IMedicineService
                 m.Name,
                 m.Unit,
                 m.Price,
-                m.IsActive
+                m.StockQuantity,
+                m.MinStockLevel,
+                m.ExpiryDate,
+                m.IsActive,
+                m.StockQuantity <= m.MinStockLevel
             ))
             .ToListAsync();
 
@@ -83,6 +89,9 @@ public class MedicineService : IMedicineService
             Unit = request.Unit,
             Price = request.Price,
             Description = request.Description,
+            StockQuantity = request.StockQuantity ?? 0,
+            MinStockLevel = request.MinStockLevel ?? 5,
+            ExpiryDate = request.ExpiryDate,
             IsActive = true,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
@@ -139,5 +148,58 @@ public class MedicineService : IMedicineService
         await _context.SaveChangesAsync();
 
         return Results.Ok(new ApiResponse<object>(true, "Medicine deleted", null));
+    }
+
+    public async Task<IResult> GetLowStockAsync(ClaimsPrincipal user)
+    {
+        var clinicId = await GetClinicIdFromUser(user);
+        if (clinicId == null)
+            return Results.Unauthorized();
+
+        var thirtyDaysFromNow = DateTime.UtcNow.AddDays(30);
+
+        var lowStockMedicines = await _context.Medicines
+            .AsNoTracking()
+            .Where(m => m.ClinicId == clinicId.Value && m.IsActive)
+            .Where(m => m.StockQuantity <= m.MinStockLevel ||
+                        (m.ExpiryDate.HasValue && m.ExpiryDate <= thirtyDaysFromNow))
+            .OrderBy(m => m.StockQuantity)
+            .Select(m => new LowStockMedicineDto(
+                m.MedicineId,
+                m.Code,
+                m.Name,
+                m.Unit,
+                m.StockQuantity,
+                m.MinStockLevel,
+                m.ExpiryDate,
+                m.ExpiryDate.HasValue && m.ExpiryDate <= thirtyDaysFromNow
+            ))
+            .ToListAsync();
+
+        return Results.Ok(new ApiResponse<List<LowStockMedicineDto>>(true, "Low stock medicines", lowStockMedicines));
+    }
+
+    public async Task<IResult> UpdateStockAsync(ClaimsPrincipal user, Guid medicineId, UpdateStockRequest request)
+    {
+        var clinicId = await GetClinicIdFromUser(user);
+        if (clinicId == null)
+            return Results.Unauthorized();
+
+        var medicine = await _context.Medicines
+            .FirstOrDefaultAsync(m => m.MedicineId == medicineId && m.ClinicId == clinicId.Value);
+
+        if (medicine == null)
+            return Results.NotFound(new ApiResponse<object>(false, "Medicine not found", null));
+
+        medicine.StockQuantity += request.Quantity; // Can be negative for adjustments
+        if (medicine.StockQuantity < 0)
+            medicine.StockQuantity = 0;
+        medicine.UpdatedAt = DateTime.UtcNow;
+
+        await _context.SaveChangesAsync();
+
+        return Results.Ok(new ApiResponse<object>(true,
+            $"Stock updated. New quantity: {medicine.StockQuantity}",
+            new { medicine.StockQuantity }));
     }
 }

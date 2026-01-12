@@ -1,0 +1,74 @@
+@startuml
+
+' ========== THESIS STANDARD CONFIGURATION ==========
+skinparam handwritten false
+skinparam shadowing false
+skinparam packageStyle rectangle
+skinparam defaultFontName Arial
+skinparam defaultFontSize 12
+
+skinparam usecase {
+    BackgroundColor White
+    BorderColor Black
+    ArrowColor Black
+}
+
+skinparam actor {
+    BorderColor Black
+    BackgroundColor White
+}
+
+skinparam rectangle {
+    BorderColor Black
+    BackgroundColor White
+}
+
+left to right direction
+
+title Sơ đồ Use Case - Module Đặt lịch hẹn
+
+' ========== ACTORS ==========
+actor "Bệnh nhân" as Patient
+actor "Lễ tân" as Receptionist
+
+' ========== SYSTEM BOUNDARY ==========
+rectangle "Module Đặt lịch hẹn" {
+    
+    usecase "Xem danh sách phòng khám" as UC_ViewClinic
+    usecase "Xem dịch vụ nha khoa" as UC_ViewService
+    usecase "Xem danh sách nha sĩ" as UC_ViewDoctor
+    usecase "Xem lịch trống" as UC_ViewSlot
+    usecase "Đặt lịch hẹn" as UC_Book
+    usecase "Xác nhận lịch hẹn" as UC_Confirm
+    usecase "Hủy lịch hẹn" as UC_Cancel
+    usecase "Dời lịch hẹn" as UC_Reschedule
+    usecase "Kiểm tra trùng lịch" as UC_CheckConflict
+    usecase "Kiểm tra lịch nghỉ nha sĩ" as UC_CheckTimeOff
+    usecase "Gửi email xác nhận" as UC_SendEmail
+}
+
+' ========== ASSOCIATIONS ==========
+
+Patient --> UC_ViewClinic
+Patient --> UC_ViewService
+Patient --> UC_ViewDoctor
+Patient --> UC_ViewSlot
+Patient --> UC_Book
+Patient --> UC_Cancel
+Patient --> UC_Reschedule
+
+Receptionist --> UC_Book
+Receptionist --> UC_Confirm
+Receptionist --> UC_Cancel
+Receptionist --> UC_Reschedule
+
+' ========== RELATIONSHIPS ==========
+
+UC_Book ..> UC_ViewSlot : <<include>>
+UC_Book ..> UC_CheckConflict : <<include>>
+UC_Book ..> UC_CheckTimeOff : <<include>>
+UC_Book ..> UC_SendEmail : <<include>>
+UC_Reschedule ..> UC_CheckConflict : <<include>>
+UC_Confirm ..> UC_SendEmail : <<extend>>
+
+@enduml
