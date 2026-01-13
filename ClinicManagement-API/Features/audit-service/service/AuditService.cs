@@ -127,10 +127,20 @@ public class AuditService : IAuditService
             query = query.Where(a => a.UserId == request.UserId.Value);
 
         if (request.FromDate.HasValue)
-            query = query.Where(a => a.CreatedAt >= request.FromDate.Value);
+        {
+            var fromDateUtc = request.FromDate.Value.Kind == DateTimeKind.Utc
+                ? request.FromDate.Value
+                : request.FromDate.Value.ToUniversalTime();
+            query = query.Where(a => a.CreatedAt >= fromDateUtc);
+        }
 
         if (request.ToDate.HasValue)
-            query = query.Where(a => a.CreatedAt <= request.ToDate.Value);
+        {
+            var toDateUtc = request.ToDate.Value.Kind == DateTimeKind.Utc
+                ? request.ToDate.Value
+                : request.ToDate.Value.ToUniversalTime();
+            query = query.Where(a => a.CreatedAt <= toDateUtc);
+        }
 
         var totalCount = await query.CountAsync();
         var totalPages = (int)Math.Ceiling(totalCount / (double)request.PageSize);
