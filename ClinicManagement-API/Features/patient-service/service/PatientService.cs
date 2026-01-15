@@ -375,7 +375,7 @@ public class PatientService : IPatientService
             return Results.NotFound(new ApiResponse<object>(false, "Attachment not found", null));
         }
 
-        // File storage path - adjust based on your storage strategy
+        // File storage path - StoredFileName already contains {recordId}/{filename}
         var storagePath = Path.Combine("uploads", "medical-records", attachment.StoredFileName);
 
         if (!File.Exists(storagePath))
@@ -383,8 +383,9 @@ public class PatientService : IPatientService
             return Results.NotFound(new ApiResponse<object>(false, "File not found on server", null));
         }
 
-        var fileStream = new FileStream(storagePath, FileMode.Open, FileAccess.Read);
-        return Results.File(fileStream, attachment.ContentType, attachment.FileName);
+        // Read file bytes to avoid stream issues
+        var fileBytes = await File.ReadAllBytesAsync(storagePath);
+        return Results.File(fileBytes, attachment.ContentType, attachment.FileName);
     }
 
     // ===== Receptionist Patient APIs =====
