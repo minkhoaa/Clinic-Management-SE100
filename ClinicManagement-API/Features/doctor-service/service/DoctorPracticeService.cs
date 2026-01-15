@@ -24,6 +24,11 @@ public interface IDoctorPracticeService
     Task<IResult> GetPrescriptionTemplatesAsync(ClaimsPrincipal user);
     Task<IResult> CreatePrescriptionTemplateAsync(ClaimsPrincipal user, CreatePrescriptionTemplateRequest request);
     Task<IResult> CreateExaminationAsync(ClaimsPrincipal user, CreateExaminationRequest request);
+
+    // Attachment APIs
+    Task<IResult> UploadAttachmentAsync(ClaimsPrincipal user, Guid recordId, IFormFile file, string? description);
+    Task<IResult> DeleteAttachmentAsync(ClaimsPrincipal user, Guid recordId, Guid attachmentId);
+    Task<IResult> GetAttachmentsAsync(Guid recordId);
 }
 
 public class DoctorPracticeService : IDoctorPracticeService
@@ -767,5 +772,125 @@ public class DoctorPracticeService : IDoctorPracticeService
         return Results.Created($"/api/doctor/medical-records/{record.RecordId}",
             new ApiResponse<CreateExaminationResponse>(true, "Examination created",
                 new CreateExaminationResponse(record.RecordId, record.RecordId, billId, record.CreatedAt)));
+    }
+
+    // ===== Attachment APIs =====
+
+    private static readonly string[] AllowedExtensions = { ".jpg", ".jpeg", ".png", ".gif", ".pdf", ".dcm", ".dicom" };
+    private const long MaxFileSize = 20 * 1024 * 1024; // 20MB
+
+    public async Task<IResult> UploadAttachmentAsync(ClaimsPrincipal user, Guid recordId, IFormFile file,
+        string? description)
+    {
+        var doctorId = await GetDoctorIdFromUser(user);
+        if (doctorId == null)
+            return Results.Unauthorized();
+
+        // Validate file
+        if (file == null || file.Length == 0)
+            return Results.BadRequest(new ApiResponse<object>(false, "No file uploaded", null));
+
+        if (file.Length > MaxFileSize)
+            return Results.BadRequest(new ApiResponse<object>(false,
+                $"File size exceeds limit of {MaxFileSize / 1024 / 1024}MB", null));
+
+        var extension = Path.GetExtension(file.FileName).ToLowerInvariant();
+        if (!AllowedExtensions.Contains(extension))
+            return Results.BadRequest(new ApiResponse<object>(false,
+                $"File type not allowed. Allowed types: {string.Join(", ", AllowedExtensions)}", null));
+
+        // Verify medical record exists and belongs to doctor's clinic
+        var record = await _context.MedicalRecords
+            .Include(r => r.Doctor)
+            .FirstOrDefaultAsync(r => r.RecordId == recordId);
+
+        if (record == null)
+            return Results.NotFound(new ApiResponse<object>(false, "Medical record not found", null));
+
+        // Create upload directory
+        var uploadDir = Path.Combine("uploads", "medical-records", recordId.ToString());
+        Directory.CreateDirectory(uploadDir);
+
+        // Generate unique filename
+        var storedFileName = $"{Guid.NewGuid()}{extension}";
+        var filePath = Path.Combine(uploadDir, storedFileName);
+
+        // Save file
+        await using (var stream = new FileStream(filePath, FileMode.Create))
+        {
+            await file.CopyToAsync(stream);
+        }
+
+        // Create attachment record
+        var attachment = new MedicalRecordAttachment
+        {
+            AttachmentId = Guid.NewGuid(),
+            RecordId = recordId,
+            FileName = file.FileName,
+            StoredFileName = Path.Combine(recordId.ToString(), storedFileName),
+            ContentType = file.ContentType,
+            FileSize = file.Length,
+            Description = description,
+            UploadedAt = DateTime.UtcNow
+        };
+
+        _context.MedicalRecordAttachments.Add(attachment);
+        await _context.SaveChangesAsync();
+
+        return Results.Ok(new ApiResponse<AttachmentUploadResponse>(true, "File uploaded successfully",
+            new AttachmentUploadResponse(
+                attachment.AttachmentId,
+                attachment.FileName,
+                attachment.ContentType,
+                attachment.FileSize,
+                attachment.Description,
+                attachment.UploadedAt
+            )));
+    }
+
+    public async Task<IResult> DeleteAttachmentAsync(ClaimsPrincipal user, Guid recordId, Guid attachmentId)
+    {
+        var doctorId = await GetDoctorIdFromUser(user);
+        if (doctorId == null)
+            return Results.Unauthorized();
+
+        var attachment = await _context.MedicalRecordAttachments
+            .Include(a => a.MedicalRecord)
+            .FirstOrDefaultAsync(a => a.AttachmentId == attachmentId && a.RecordId == recordId);
+
+        if (attachment == null)
+            return Results.NotFound(new ApiResponse<object>(false, "Attachment not found", null));
+
+        // Delete physical file
+        var filePath = Path.Combine("uploads", "medical-records", attachment.StoredFileName);
+        if (File.Exists(filePath))
+        {
+            File.Delete(filePath);
+        }
+
+        // Delete database record
+        _context.MedicalRecordAttachments.Remove(attachment);
+        await _context.SaveChangesAsync();
+
+        return Results.Ok(new ApiResponse<object>(true, "Attachment deleted successfully", null));
+    }
+
+    public async Task<IResult> GetAttachmentsAsync(Guid recordId)
+    {
+        var attachments = await _context.MedicalRecordAttachments
+            .AsNoTracking()
+            .Where(a => a.RecordId == recordId)
+            .OrderByDescending(a => a.UploadedAt)
+            .Select(a => new AttachmentUploadResponse(
+                a.AttachmentId,
+                a.FileName,
+                a.ContentType,
+                a.FileSize,
+                a.Description,
+                a.UploadedAt
+            ))
+            .ToListAsync();
+
+        return Results.Ok(new ApiResponse<List<AttachmentUploadResponse>>(true, "Attachments retrieved", attachments));
     }
 }

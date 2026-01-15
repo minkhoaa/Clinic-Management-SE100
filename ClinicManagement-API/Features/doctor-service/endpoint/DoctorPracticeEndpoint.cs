@@ -33,5 +33,17 @@ public static class DoctorPracticeEndpoint
 
         // Examinations
         doctor.MapPost("/examinations", DoctorPracticeHandler.CreateExamination);
+
+        // Attachments (X-Ray, images, documents)
+        doctor.MapGet("/medical-records/{recordId:guid}/attachments", DoctorPracticeHandler.GetAttachments)
+            .WithDescription("Lấy danh sách file đính kèm của hồ sơ bệnh án");
+
+        doctor.MapPost("/medical-records/{recordId:guid}/attachments", DoctorPracticeHandler.UploadAttachment)
+            .WithDescription("Upload ảnh X-Ray hoặc file đính kèm (max 20MB, types: jpg, png, pdf, dicom)")
+            .DisableAntiforgery();
+
+        doctor.MapDelete("/medical-records/{recordId:guid}/attachments/{attachmentId:guid}",
+                DoctorPracticeHandler.DeleteAttachment)
+            .WithDescription("Xóa file đính kèm");
     }
 }

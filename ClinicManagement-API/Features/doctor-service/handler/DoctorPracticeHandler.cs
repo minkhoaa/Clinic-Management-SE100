@@ -48,4 +48,16 @@ public static class DoctorPracticeHandler
     public static async Task<IResult> CreateExamination(IDoctorPracticeService service, ClaimsPrincipal user,
         CreateExaminationRequest request)
         => await service.CreateExaminationAsync(user, request);
+
+    // Attachment handlers
+    public static async Task<IResult> GetAttachments(IDoctorPracticeService service, Guid recordId)
+        => await service.GetAttachmentsAsync(recordId);
+
+    public static async Task<IResult> UploadAttachment(IDoctorPracticeService service, ClaimsPrincipal user,
+        Guid recordId, IFormFile file, string? description)
+        => await service.UploadAttachmentAsync(user, recordId, file, description);
+
+    public static async Task<IResult> DeleteAttachment(IDoctorPracticeService service, ClaimsPrincipal user,
+        Guid recordId, Guid attachmentId)
+        => await service.DeleteAttachmentAsync(user, recordId, attachmentId);
 }

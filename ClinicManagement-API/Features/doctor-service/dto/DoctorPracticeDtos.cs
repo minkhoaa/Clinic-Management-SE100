@@ -178,3 +178,13 @@ public record CreateExaminationResponse(
     Guid? BillId,
     DateTime CreatedAt
 );
+
+// Attachment DTOs
+public record AttachmentUploadResponse(
+    Guid AttachmentId,
+    string FileName,
+    string ContentType,
+    long FileSize,
+    string? Description,
+    DateTime UploadedAt
+);
