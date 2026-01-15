@@ -9,7 +9,8 @@ namespace ClinicManagement_API.Domains.Enums
         Completed = 4, // Hoàn thành
         Cancelled = 5, // Đã hủy
         NoShow = 6, // Không đến
-        Rescheduling = 7 // Đang dời lịch
+        Rescheduling = 7, // Đang dời lịch
+        Reviewed = 8 // Đã đánh giá
     }
 
     public enum AppointmentSource : byte

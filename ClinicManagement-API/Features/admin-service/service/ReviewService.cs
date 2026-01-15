@@ -39,8 +39,8 @@ public class ReviewService : IReviewService
             return Results.NotFound(new ApiResponse<object>(false, "Patient profile not found", null));
         }
 
-        // Check if appointment exists and belongs to patient
-        var appointment = await _context.Appointments.AsNoTracking()
+        // Check if appointment exists and belongs to patient (need tracking to update status)
+        var appointment = await _context.Appointments
             .Include(a => a.Doctor)
             .FirstOrDefaultAsync(a => a.AppointmentId == request.AppointmentId);
 
@@ -56,14 +56,20 @@ public class ReviewService : IReviewService
                 null));
         }
 
-        // Check if appointment is completed
+        // Check if appointment is completed (not yet reviewed)
+        if (appointment.Status == AppointmentStatus.Reviewed)
+        {
+            return Results.BadRequest(
+                new ApiResponse<object>(false, "This appointment has already been reviewed", null));
+        }
+
         if (appointment.Status != AppointmentStatus.Completed)
         {
             return Results.BadRequest(
                 new ApiResponse<object>(false, "You can only review completed appointments", null));
         }
 
-        // Check if already reviewed
+        // Double-check if already reviewed in Reviews table
         var existingReview = await _context.Reviews.AsNoTracking()
             .AnyAsync(r => r.AppointmentId == request.AppointmentId);
 
@@ -85,6 +91,11 @@ public class ReviewService : IReviewService
         };
 
         _context.Reviews.Add(review);
+
+        // Update appointment status to Reviewed
+        appointment.Status = AppointmentStatus.Reviewed;
+        appointment.UpdatedAt = DateTime.UtcNow;
+
         await _context.SaveChangesAsync();
 
         var result = new ReviewDto(
