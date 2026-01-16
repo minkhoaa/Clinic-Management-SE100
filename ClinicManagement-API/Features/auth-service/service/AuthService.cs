@@ -1,8 +1,10 @@
+using ClinicManagement_API.Domains.Entities;
 using ClinicManagement_API.Domains.Enums;
 using ClinicManagement_API.Features.auth_service.dto;
 using ClinicManagement_API.Features.auth_service.helper;
 using ClinicManagement_API.Infrastructure.Persisstence;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
 
 namespace ClinicManagement_API.Features.auth_service.service;
 
@@ -18,18 +20,21 @@ public class AuthService : IAuthService
     private readonly RoleManager<Role> _roleManager;
     private readonly SignInManager<User> _signInManager;
     private readonly JwtGenerator _jwtGenerator;
+    private readonly ClinicDbContext _context;
 
     public AuthService(
         UserManager<User> userManager,
         RoleManager<Role> roleManager,
         SignInManager<User> signInManager,
-        JwtGenerator jwtGenerator
+        JwtGenerator jwtGenerator,
+        ClinicDbContext context
     )
     {
         _userManager = userManager;
         _roleManager = roleManager;
         _signInManager = signInManager;
         _jwtGenerator = jwtGenerator;
+        _context = context;
     }
 
     public async Task<IResult> Register(RegisterDto dto)
@@ -41,10 +46,13 @@ public class AuthService : IAuthService
 
             var existedUser = await _userManager.FindByNameAsync(dto.Username);
             if (existedUser != null) throw new Exception("Username is already used");
+
             var user = new User
             {
                 Id = Guid.NewGuid(),
-                UserName = dto.Username
+                UserName = dto.Username,
+                Email = dto.Email,
+                PhoneNumber = dto.Phone
             };
             var addUserStatus = await _userManager.CreateAsync(user, dto.Password);
             if (!addUserStatus.Succeeded)
@@ -58,10 +66,37 @@ public class AuthService : IAuthService
             var isInRoles = await _userManager.IsInRoleAsync(user, AppRoles.Patient);
             if (!isInRoles) await _userManager.AddToRoleAsync(user, AppRoles.Patient);
 
+            // Create Patient record if ClinicId is provided
+            Guid? patientId = null;
+            if (dto.ClinicId.HasValue)
+            {
+                // Generate patient code
+                var patientCount = await _context.Patients.CountAsync(p => p.ClinicId == dto.ClinicId.Value);
+                var patientCode = $"BN-{patientCount + 1:D5}";
+
+                var patient = new Patients
+                {
+                    PatientId = Guid.NewGuid(),
+                    ClinicId = dto.ClinicId.Value,
+                    UserId = user.Id,
+                    PatientCode = patientCode,
+                    FullName = dto.FullName ?? dto.Username,
+                    PrimaryPhone = dto.Phone,
+                    Email = dto.Email,
+                    Gender = Gender.X,
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                };
+
+                _context.Patients.Add(patient);
+                await _context.SaveChangesAsync();
+                patientId = patient.PatientId;
+            }
+
             return Results.Ok(new Contracts.ApiResponse<RegisterResponse>(
                 true,
                 "Register successfully",
-                new RegisterResponse(user.Id)));
+                new RegisterResponse(user.Id, patientId)));
         }
         catch (Exception e)
         {
