@@ -48,12 +48,45 @@ public class PatientService : IPatientService
         }
 
         var patient = await _context.Patients
-            .AsNoTracking()
             .FirstOrDefaultAsync(p => p.UserId == userId);
 
+        // If patient doesn't exist, auto-create one
         if (patient == null)
         {
-            return Results.NotFound(new ApiResponse<object>(false, "Patient profile not found", null));
+            // Get user info to populate patient
+            var identityUser = await _context.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == userId);
+            if (identityUser == null)
+            {
+                return Results.Unauthorized();
+            }
+
+            // Get default clinic (first clinic) or create without clinic
+            var defaultClinic = await _context.Clinics.AsNoTracking().FirstOrDefaultAsync();
+            if (defaultClinic == null)
+            {
+                return Results.BadRequest(new ApiResponse<object>(false, "No clinic available in system", null));
+            }
+
+            // Generate patient code
+            var patientCount = await _context.Patients.CountAsync(p => p.ClinicId == defaultClinic.ClinicId);
+            var patientCode = $"BN-{patientCount + 1:D5}";
+
+            patient = new Patients
+            {
+                PatientId = Guid.NewGuid(),
+                ClinicId = defaultClinic.ClinicId,
+                UserId = userId,
+                PatientCode = patientCode,
+                FullName = identityUser.UserName ?? "Chưa cập nhật",
+                PrimaryPhone = identityUser.PhoneNumber,
+                Email = identityUser.Email,
+                Gender = Gender.X,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            };
+
+            _context.Patients.Add(patient);
+            await _context.SaveChangesAsync();
         }
 
         var response = new PatientProfileResponse(
