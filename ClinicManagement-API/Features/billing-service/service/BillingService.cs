@@ -208,7 +208,7 @@ public class BillingService : IBillingService
         try
         {
             bill.Status = BillStatus.Paid;
-            bill.PaymentDate = DateTime.Now;
+            bill.PaymentDate = DateTime.UtcNow;
             bill.PaidAmount = request.Amount;
             bill.ChangeAmount = request.Amount - bill.TotalAmount;
             bill.PaymentMethod = request.PaymentMethod;
