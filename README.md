@@ -1,5 +1,25 @@
 # Clinic Management API
-**Transforming Healthcare Operations into Competitive Advantage**
+
+> **Transforming Healthcare Operations into Competitive Advantage**
+
+<p align="center">
+  <img src="https://img.shields.io/badge/.NET-8.0-512BD4?style=for-the-badge&logo=dotnet&logoColor=white" alt=".NET 8"/>
+  <img src="https://img.shields.io/badge/PostgreSQL-16-4169E1?style=for-the-badge&logo=postgresql&logoColor=white" alt="PostgreSQL"/>
+  <img src="https://img.shields.io/badge/Docker-Ready-2496ED?style=for-the-badge&logo=docker&logoColor=white" alt="Docker"/>
+  <img src="https://img.shields.io/badge/JWT-Authentication-000000?style=for-the-badge&logo=jsonwebtokens&logoColor=white" alt="JWT"/>
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/Swagger-OpenAPI-85EA2D?style=flat-square&logo=swagger&logoColor=black" alt="Swagger"/>
+  <img src="https://img.shields.io/badge/VNPAY-Integrated-1A1F71?style=flat-square&logo=visa&logoColor=white" alt="VNPAY"/>
+  <img src="https://img.shields.io/badge/Entity_Framework-Core-512BD4?style=flat-square&logo=dotnet&logoColor=white" alt="EF Core"/>
+  <img src="https://img.shields.io/badge/License-Proprietary-red?style=flat-square" alt="License"/>
+  <img src="https://img.shields.io/badge/Version-1.0.0-blue?style=flat-square" alt="Version"/>
+</p>
+
+<p align="center">
+  <strong>Production-Ready</strong> · <strong>Scalable</strong> · <strong>HIPAA-Compliant</strong> · <strong>High Performance</strong>
+</p>
 
 ---
 
@@ -17,16 +37,16 @@ Healthcare providers today are losing competitive ground due to operational inef
 
 ## Key Value Propositions
 
-### 1. Revenue Protection Through Operational Excellence
+### Revenue Protection Through Operational Excellence
 Automated billing integration with clinical procedures eliminates revenue leakage. Every service rendered is immediately captured, priced accurately, and invoiced without delay. Real-time inventory tracking prevents stockouts of high-margin supplies and medications.
 
-### 2. Patient Experience as Growth Engine
+### Patient Experience as Growth Engine
 Intelligent scheduling eliminates wait times and booking conflicts. Unified patient profiles give doctors instant access to complete medical histories, enabling faster, more accurate diagnoses. This translates directly into higher patient satisfaction scores and referral rates.
 
-### 3. Regulatory Compliance by Design
+### Regulatory Compliance by Design
 Built-in audit trails, role-based access controls, and encrypted data storage ensure that your clinic meets HIPAA, GDPR, and local healthcare regulations without additional investment. Every action is logged, traceable, and defensible in case of audits.
 
-### 4. Future-Proof Technology Investment
+### Future-Proof Technology Investment
 Modular architecture means you can start with core features today and seamlessly add telemedicine, AI diagnostics, or analytics dashboards tomorrow—without costly system migrations or downtime.
 
 ---
@@ -73,7 +93,8 @@ Every system action is logged with full traceability (who, what, when). Role-bas
 ---
 
 ## Technical Architecture
-**Strategic Design Philosophy: Enterprise Stability Meets Startup Agility**
+
+> **Strategic Design Philosophy:** *Enterprise Stability Meets Startup Agility*
 
 ### Why This Stack Delivers Business Value
 
@@ -113,12 +134,10 @@ The modular monolith approach delivers the best cost-to-performance ratio for cl
 ---
 
 ## Project Status
-**Current Version:** Production-Ready MVP  
-**License:** Proprietary (Enterprise Licensing Available)  
-**Maintained By:** Internal Engineering & Product Team  
 
----
-
-*This document represents the technical and commercial vision of Clinic Management API as of January 2026.*  
-*For partnership inquiries or technical deep-dives, contact the Product Office.*
-
+| **Attribute** | **Details** |
+|:--------------|:------------|
+| **Current Version** | `v1.0.0` — Production-Ready MVP |
+| **License** | Proprietary (Enterprise Licensing Available) |
+| **Maintained By** | Internal Engineering & Product Team |
+| **Last Updated** | January 2026 |
